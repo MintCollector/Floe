@@ -431,6 +431,12 @@ A build signed ad hoc has no entitlement for iCloud, says "Unavailable" and neve
   signed with them and without a profile that lists them does not launch, and a release built with this file and
   a profile that lacks the container fails at signing.
 
+To try sync in a local build, run `./scripts/devrun.sh --icloud`. It signs the build with the Developer ID
+certificate in the keychain and the provisioning profile at `~/.config/floe/Floe_Developer_ID.provisionprofile`
+(or `FLOE_PROVISIONING_PROFILE`), without notarizing it. The build has a release's identity, so it keeps the
+permissions given to a release and syncs with iCloud's Production data, not a separate test copy. Tried: such a
+build starts with the CloudKit entitlements. Sync itself was not run in one.
+
 To ship sync, in this order. Each step says where it comes from: (code) read in this repository or run here,
 (Apple) Apple's documentation or SDK headers, (memory) remembered and not checked.
 

@@ -6,9 +6,13 @@
 #   ./scripts/devrun.sh              # Release
 #   ./scripts/devrun.sh --debug      # Debug, for the debugger
 #   ./scripts/devrun.sh --no-launch  # build and install only
+#   ./scripts/devrun.sh --icloud     # signed as a release is, so settings sync works
 #
 # Signs with the first valid "Apple Development" certificate in the keychain, or the one named by
 # FLOE_SIGN_IDENTITY, and ad hoc when there is none.
+#
+# --icloud uses the "Developer ID Application" certificate and the profile at FLOE_PROVISIONING_PROFILE
+# (default ~/.config/floe/Floe_Developer_ID.provisionprofile), and syncs with iCloud's Production data.
 set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "$0")"
@@ -22,12 +26,15 @@ DEST="/Applications/$APP_NAME.app"
 BUNDLE_ID="org.thaw.floe"
 DERIVED=".build/xcode"
 LAUNCH=1
+ICLOUD=0
+PROFILE="${FLOE_PROVISIONING_PROFILE:-$HOME/.config/floe/Floe_Developer_ID.provisionprofile}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --debug) CONFIG="Debug" ;;
         --release) CONFIG="Release" ;;
         --no-launch) LAUNCH=0 ;;
+        --icloud) ICLOUD=1 ;;
         -h | --help)
             awk 'NR > 1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "$SCRIPT_PATH"
             exit 0
@@ -69,7 +76,9 @@ say "Installing runtime dependencies…"
 # No package here needs an install script, so none are allowed to run.
 (cd runtime && bun install --ignore-scripts --frozen-lockfile >/dev/null 2>&1 || bun install --ignore-scripts >/dev/null)
 
-if [[ ! -d "Vendor/FendCore/Frameworks/CFendCore.xcframework" ]]; then
+# Built again when it is missing or older than its Rust sources or its header.
+FEND="Vendor/FendCore/Frameworks/CFendCore.xcframework"
+if [[ ! -d "$FEND" || -n "$(find Vendor/FendCore/rust/src Vendor/FendCore/rust/Cargo.toml Vendor/FendCore/include -newer "$FEND" -print -quit)" ]]; then
     say "Building Fend Core xcframework…"
     ./scripts/build-fend.sh
 fi
@@ -86,6 +95,10 @@ BUILD_ARGS=(
     -destination 'platform=macOS,arch=arm64'
     -derivedDataPath "$DERIVED"
 )
+# A Mac without Rust's Intel target builds the library for itself alone, and then the app is built so too.
+if ! lipo -archs "$FEND"/*/libfend_core_c.a | grep -q x86_64; then
+    BUILD_ARGS+=(ONLY_ACTIVE_ARCH=YES)
+fi
 
 say "Building $CONFIG ($BUNDLE_ID)…"
 xcodebuild "${BUILD_ARGS[@]}" build | { grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true; }
@@ -95,10 +108,45 @@ APP="$DERIVED/Build/Products/$CONFIG/$APP_NAME.app"
     exit 1
 }
 
+fail() {
+    echo "$*" >&2
+    exit 1
+}
+
+sign_for_icloud() {
+    local identity work application team
+    [[ -f "$PROFILE" ]] || fail "No provisioning profile at $PROFILE (set FLOE_PROVISIONING_PROFILE)."
+    identity="${FLOE_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | grep -v CSSMERR | head -1 | awk '{print $2}')}"
+    [[ -n "$identity" ]] || fail "No Developer ID Application certificate in the keychain."
+
+    work=$(mktemp -d)
+    security cms -D -i "$PROFILE" >"$work/profile.plist"
+    application=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$work/profile.plist")
+    team=${application%%.*}
+    [[ "$application" == "$team.$BUNDLE_ID" ]] || fail "The profile is for $application, not $BUNDLE_ID."
+
+    # What Xcode fills in when it signs with a profile: the two variables, the app's identifier and the environment.
+    sed -e "s/\$(TeamIdentifierPrefix)/$team./" -e "s/\$(CFBundleIdentifier)/$BUNDLE_ID/" Resources/Floe-iCloud.entitlements >"$work/entitlements.plist"
+    /usr/libexec/PlistBuddy \
+        -c "Add :com.apple.application-identifier string $application" \
+        -c "Add :com.apple.developer.team-identifier string $team" \
+        -c "Add :com.apple.developer.icloud-container-environment string Production" "$work/entitlements.plist"
+
+    say "Signing for iCloud with the Developer ID certificate and $(basename "$PROFILE")…"
+    cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+    codesign --force --deep --timestamp=none --preserve-metadata=entitlements --sign "$identity" "$APP" 2>/dev/null
+    # Not --deep: only the app itself may claim what the profile grants, never Bun or a helper inside it.
+    codesign --force --timestamp=none --entitlements "$work/entitlements.plist" --sign "$identity" "$APP" 2>/dev/null
+    codesign --verify --deep --strict "$APP"
+    rm -rf "$work"
+}
+
 # macOS ties a permission such as Accessibility to the signature. The build's ad hoc one changes every
 # time, so each build would lose its grants; a development certificate keeps them.
 IDENTITY="${FLOE_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | grep -v CSSMERR | head -1 | awk '{print $2}')}"
-if [[ -n "$IDENTITY" ]]; then
+if [[ "$ICLOUD" -eq 1 ]]; then
+    sign_for_icloud
+elif [[ -n "$IDENTITY" ]]; then
     say "Signing with a development certificate, so permissions survive the build…"
     codesign --force --deep --preserve-metadata=entitlements --sign "$IDENTITY" "$APP" 2>/dev/null
     codesign --verify --deep --strict "$APP"
