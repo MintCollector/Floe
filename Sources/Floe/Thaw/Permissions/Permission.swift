@@ -48,6 +48,9 @@ class Permission: Identifiable {
     @ObservationIgnored
     var onChange: (() -> Void)?
 
+    /// Names the permission in what Floe stores, where the title would change with the language.
+    let key: String
+
     let title: String
 
     let iconName: String
@@ -96,6 +99,7 @@ class Permission: Identifiable {
     /// Creates a permission.
     ///
     /// - Parameters:
+    ///   - key: A name for the permission that never changes.
     ///   - title: The title of the permission.
     ///   - details: Descriptive details for the permission.
     ///   - isRequired: A Boolean value that indicates if menu bar search needs this permission.
@@ -108,6 +112,7 @@ class Permission: Identifiable {
     ///   - ungrantedPollBudget: Consecutive ungranted re-checks before the
     ///     poll stops itself. At the default interval, three minutes.
     init(
+        key: String,
         title: String,
         iconName: String,
         iconColor: Color,
@@ -120,6 +125,7 @@ class Permission: Identifiable {
         pollInterval: TimeInterval = 3,
         ungrantedPollBudget: Int = 60
     ) {
+        self.key = key
         self.title = title
         self.iconName = iconName
         self.iconColor = iconColor
@@ -255,6 +261,7 @@ class Permission: Identifiable {
 final class AccessibilityPermission: Permission {
     init() {
         super.init(
+            key: "accessibility",
             title: String(localized: "Accessibility", bundle: .floe, comment: "The macOS permission named Accessibility."),
             iconName: "accessibility",
             iconColor: .blue,

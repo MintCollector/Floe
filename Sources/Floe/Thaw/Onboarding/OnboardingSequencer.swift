@@ -7,9 +7,8 @@
 //
 //  Floe changes © 2026 René Jiménez, under the same license.
 //
-//  Ported to Floe from Thaw 3: Floe runs without any grant, so there is no recovery stage and no
-//  tour version, and the access step is skipped only when every permission is granted. The step
-//  order and the step indicator's numbers moved here from the onboarding view so they are tested.
+//  Ported to Floe from Thaw 3: no tour version, and the recovery stage is the access step alone,
+//  shown while a permission is unanswered. The step order and indicator numbers moved here to be tested.
 
 /// The one decision about what the onboarding window shows when it opens.
 ///
@@ -23,6 +22,9 @@ enum OnboardingSequencer {
         /// grant is already in place.
         case onboarding(skipsAccessStep: Bool)
 
+        /// The access step alone: the welcome was seen, and a permission is neither granted nor declined.
+        case access
+
         /// Nothing to show; the window should not be opened.
         case none
     }
@@ -33,17 +35,30 @@ enum OnboardingSequencer {
     ///   - hasSeenOnboarding: Whether the user has finished or skipped the tour once.
     ///   - allPermissionsGranted: Whether every grant is in place
     ///     right now, never a persisted value.
+    ///   - hasUnanswered: Whether a permission is neither granted nor declined: one a new version
+    ///     added, or one that was held and is gone.
     ///   - replayRequested: true when the user asked to see onboarding
     ///     again from Settings, which wins over the stored flag.
     static func stage(
         hasSeenOnboarding: Bool,
         allPermissionsGranted: Bool,
+        hasUnanswered: Bool = false,
         replayRequested: Bool = false
     ) -> Stage {
         if replayRequested || !hasSeenOnboarding {
             return .onboarding(skipsAccessStep: allPermissionsGranted)
         }
-        return .none
+        return hasUnanswered ? .access : .none
+    }
+
+    /// The declined permissions worth remembering: one granted since is forgotten, so losing it asks again.
+    static func stillDeclined(_ declined: Set<String>, ungranted: Set<String>) -> Set<String> {
+        declined.intersection(ungranted)
+    }
+
+    /// Whether a permission that is not granted was never declined.
+    static func hasUnanswered(ungranted: Set<String>, declined: Set<String>) -> Bool {
+        !ungranted.isSubset(of: declined)
     }
 }
 

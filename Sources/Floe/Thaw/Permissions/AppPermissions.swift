@@ -7,9 +7,9 @@
 //
 //  Floe changes © 2026 René Jiménez, under the same license.
 //
-//  Ported to Floe from Thaw 3: Floe asks only for Accessibility, so the Screen Recording,
+//  Ported to Floe from Thaw 3: Floe needs only Accessibility, so the Screen Recording,
 //  Full Disk Access and Control Center grants, the diagnostics log and the preview protocol are
-//  left out. The permission is injectable for tests.
+//  left out. The optional permissions are Floe's. Both are injectable for tests.
 
 import Foundation
 
@@ -23,12 +23,15 @@ final class AppPermissions {
     enum PermissionsState: Equatable {
         /// At least one permission that menu bar search needs hasn't been granted.
         case missing
-        /// Every permission has been granted.
+        /// Every permission menu bar search needs has been granted.
         case hasAll
     }
 
     /// The permission for Accessibility features.
     let accessibility: Permission
+
+    /// The optional ones, each for one feature: Calendar, Reminders and Contacts.
+    let others: [Permission]
 
     /// Fired after any permission's granted state transitions, for owners
     /// that must react to a specific grant.
@@ -40,12 +43,18 @@ final class AppPermissions {
 
     /// Every permission Floe can use.
     var allPermissions: [Permission] {
-        [accessibility]
+        [accessibility] + others
     }
 
-    /// Creates a new permissions manager. Tests pass their own permission; nil uses the system's.
-    init(accessibility: Permission? = nil) {
+    /// Whether nothing is left to grant, the optional ones included.
+    var hasEveryPermission: Bool {
+        allPermissions.allSatisfy(\.hasPermission)
+    }
+
+    /// Creates a new permissions manager. Tests pass their own permissions; nil uses the system's.
+    init(accessibility: Permission? = nil, others: [Permission]? = nil) {
         self.accessibility = accessibility ?? AccessibilityPermission()
+        self.others = others ?? DataPermissions.system
         self.updatePermissionsState()
         // Permission is @Observable, so changes arrive via onChange.
         for permission in allPermissions {
@@ -59,7 +68,7 @@ final class AppPermissions {
 
     /// Updates the current permissions state.
     private func updatePermissionsState() {
-        permissionsState = allPermissions.allSatisfy(\.hasPermission) ? .hasAll : .missing
+        permissionsState = allPermissions.filter(\.isRequired).allSatisfy(\.hasPermission) ? .hasAll : .missing
     }
 
     /// Refreshes permission grants from the system immediately.

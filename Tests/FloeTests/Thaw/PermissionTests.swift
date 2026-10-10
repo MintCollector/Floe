@@ -26,6 +26,7 @@ private final class SystemStub {
 
     func makePermission(budget: Int = 10, isRequired: Bool = true, settingsURL: URL? = URL(string: "floe-tests://settings")) -> Permission {
         Permission(
+            key: "test",
             title: "Test Permission",
             iconName: "star",
             iconColor: .blue,
@@ -209,9 +210,10 @@ struct PermissionRequestTests {
 @MainActor
 struct AppPermissionsTests {
     private let accessibilitySystem = SystemStub()
+    private let calendarSystem = SystemStub()
 
-    private func makePermissions(budget: Int = 10) -> AppPermissions {
-        AppPermissions(accessibility: accessibilitySystem.makePermission(budget: budget))
+    private func makePermissions(budget: Int = 10, others: [Permission] = []) -> AppPermissions {
+        AppPermissions(accessibility: accessibilitySystem.makePermission(budget: budget), others: others)
     }
 
     @Test(arguments: [(false, AppPermissions.PermissionsState.missing), (true, .hasAll)])
@@ -220,9 +222,21 @@ struct AppPermissionsTests {
         #expect(makePermissions().permissionsState == expected)
     }
 
-    @Test func accessibilityIsTheOnlyPermission() {
-        let permissions = makePermissions()
-        #expect(permissions.allPermissions.map(\.id) == [permissions.accessibility.id])
+    @Test func accessibilityLeadsTheOptionalPermissions() {
+        let calendar = calendarSystem.makePermission(budget: 10, isRequired: false)
+        let permissions = makePermissions(others: [calendar])
+        #expect(permissions.allPermissions.map(\.id) == [permissions.accessibility.id, calendar.id])
+    }
+
+    @Test func anOptionalPermissionLeavesTheStateAloneAndCountsTowardEverything() {
+        accessibilitySystem.granted = true
+        let permissions = makePermissions(others: [calendarSystem.makePermission(budget: 10, isRequired: false)])
+        #expect(permissions.permissionsState == .hasAll)
+        #expect(!permissions.hasEveryPermission)
+
+        calendarSystem.granted = true
+        permissions.refreshPermissionsState()
+        #expect(permissions.hasEveryPermission)
     }
 
     @Test func aGrantSeenOnATickUpdatesTheStateAndReportsTheTransition() {
@@ -263,6 +277,9 @@ struct AppPermissionsTests {
         let permissions = AppPermissions()
         #expect(permissions.accessibility.title == "Accessibility")
         #expect(permissions.accessibility.isRequired)
+        #expect(permissions.others.map(\.title) == ["Calendar", "Reminders", "Contacts"])
+        #expect(permissions.others.allSatisfy { !$0.isRequired })
+        #expect(permissions.allPermissions.map(\.key) == ["accessibility", "calendar", "reminders", "contacts"])
         #expect(permissions.allPermissions.allSatisfy { !$0.details.isEmpty })
         permissions.stopAllChecks()
     }

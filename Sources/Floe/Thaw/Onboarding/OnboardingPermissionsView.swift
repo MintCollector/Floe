@@ -7,8 +7,8 @@
 //
 //  Floe changes © 2026 René Jiménez, under the same license.
 //
-//  Ported to Floe from Thaw 3: only the layout that lists every permission is kept, and its
-//  button never waits for a grant, because Floe's launcher and extensions work without any.
+//  Ported to Floe from Thaw 3: its button never waits for a grant, because Floe works without any,
+//  and the permissions are rows in one panel instead of Thaw's cards, which have no room for four.
 
 import AppKit
 import SwiftUI
@@ -45,12 +45,15 @@ struct ThawPermissionsView: View {
         VStack(spacing: 18) {
             header
 
-            HStack(alignment: .top, spacing: 14) {
+            VStack(spacing: 0) {
                 ForEach(permissions.allPermissions) { permission in
-                    OnboardingPermissionCard(permission: permission)
+                    if permission !== permissions.allPermissions.first {
+                        Divider().padding(.leading, 50)
+                    }
+                    OnboardingPermissionRow(permission: permission)
                 }
             }
-            .fixedSize(horizontal: false, vertical: true)
+            .thawGlass(.panel, in: RoundedRectangle(cornerRadius: ThawRadius.card, style: .continuous))
             .padding(.horizontal, 30)
 
             privacyPanel
@@ -71,11 +74,11 @@ struct ThawPermissionsView: View {
                 .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction)
 
-                Text("You can grant either one later in Settings, under General.")
+                Text("You can grant any of these later in Settings, under Privacy.")
                     .font(ThawType.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .opacity(permissions.permissionsState == .hasAll ? 0 : 1)
+                    .opacity(permissions.hasEveryPermission ? 0 : 1)
             }
             .padding(.horizontal, 30)
             .padding(.bottom, 24)
@@ -99,7 +102,7 @@ struct ThawPermissionsView: View {
                 .font(ThawType.display)
                 .multilineTextAlignment(.center)
 
-            Text("Searching the menu bar needs Accessibility. The launcher and your extensions work without it.")
+            Text("Each one switches on the feature named under it. The launcher and your extensions work without any of them.")
                 .font(ThawType.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -138,42 +141,37 @@ struct ThawPermissionsView: View {
     }
 }
 
-private struct OnboardingPermissionCard: View {
+private struct OnboardingPermissionRow: View {
     let permission: Permission
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            PermissionLabel(
-                permission: permission,
-                titleFont: ThawType.heading,
-                badgePlacement: .below
-            )
+        HStack(spacing: 12) {
+            Image(systemName: permission.iconName)
+                .font(ThawType.display)
+                .foregroundStyle(permission.iconColor)
+                .frame(width: 24)
 
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(permission.details, id: \.self) { detail in
-                    HStack(alignment: .top, spacing: 6) {
-                        // A 3pt bullet, not type: no text style is this small.
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 3))
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, 5)
-
-                        Text(verbatim: detail)
-                            .font(ThawType.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(permission.title)
+                        .font(ThawType.heading)
+                    if !permission.isRequired {
+                        ThawBadge("Optional")
                     }
                 }
+                Text(verbatim: permission.details.joined(separator: " "))
+                    .font(ThawType.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 12)
 
-            PermissionStatusControl(permission: permission, layout: .filled)
+            PermissionStatusControl(permission: permission)
+                .buttonStyle(.glass)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .thawGlass(.panel, in: RoundedRectangle(cornerRadius: ThawRadius.card, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
         .thawAnimation(ThawMotion.settle, value: permission.hasPermission)
     }
 }

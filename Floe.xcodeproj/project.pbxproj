@@ -49,6 +49,7 @@
 		274767D215F2E177AF2E97D5 /* Credits.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BC098F6B0847921A77F6BF /* Credits.swift */; };
 		276D91CBF8BAE04BEABCC6E7 /* AskAIModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AE33AA2FB7B98AC273FD8B6 /* AskAIModel.swift */; };
 		27B9A208BDA5311318ECEB4F /* Notes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F2DC8F8AD9102C51C395BF /* Notes.swift */; };
+		2816EB37B245A51EF19F9E38 /* DataPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D546F23D684533615EC727A /* DataPermissions.swift */; };
 		28CDA23CC6A489FD7F5BA455 /* SettingsCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE91FCE25C5B0CA343E30A9 /* SettingsCatalog.swift */; };
 		2998C9BB3632559AFA952A3F /* ThawIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B855D08974FAFAA9A4F8C92 /* ThawIntegration.swift */; };
 		2B1A399FDE1939D1D734D098 /* BrowserTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8527BDAB44BF2D98CE3BD42 /* BrowserTabs.swift */; };
@@ -448,6 +449,7 @@
 		6B855D08974FAFAA9A4F8C92 /* ThawIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThawIntegration.swift; sourceTree = "<group>"; };
 		6C6B48A96B5E4B8222CF9E45 /* TextExpander.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextExpander.swift; sourceTree = "<group>"; };
 		6CEDDD34C97C26441F16E451 /* Node.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Node.swift; sourceTree = "<group>"; };
+		6D546F23D684533615EC727A /* DataPermissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPermissions.swift; sourceTree = "<group>"; };
 		6D5F5C90069D40A3353B1435 /* TabSearchSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabSearchSource.swift; sourceTree = "<group>"; };
 		6DA122EF4A321FB332D7C2F4 /* ExtensionSettingsSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSettingsSync.swift; sourceTree = "<group>"; };
 		6DCFAEAF70527DFBFD4F4FF1 /* PropFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropFormat.swift; sourceTree = "<group>"; };
@@ -813,6 +815,7 @@
 			isa = PBXGroup;
 			children = (
 				7E56A00A425C8E51794B5129 /* AppPermissions.swift */,
+				6D546F23D684533615EC727A /* DataPermissions.swift */,
 				44808651241F3E3186FE6311 /* Permission.swift */,
 				3A095A949E191252E89F6A9A /* PermissionsWindow.swift */,
 				3FC0C0537C1703FB936504D4 /* PermissionViews.swift */,
@@ -1304,6 +1307,7 @@
 				A6C6CEA52FE88F03991F5AE9 /* Contacts.swift in Sources */,
 				274767D215F2E177AF2E97D5 /* Credits.swift in Sources */,
 				90D90D58FD0E2F8119C8FAB7 /* CustomIcon.swift in Sources */,
+				2816EB37B245A51EF19F9E38 /* DataPermissions.swift in Sources */,
 				FEF05B988E1B8FBFE470205F /* DebugOptions.swift in Sources */,
 				8BEFCC26CE89A055A219A10B /* DiagnosticLogger.swift in Sources */,
 				347892F3937807F6287BE452 /* Diagnostics.swift in Sources */,

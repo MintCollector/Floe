@@ -24,19 +24,23 @@ enum ThawOnboardingWindowMetrics {
 struct ThawOnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var step = OnboardingStep.welcome
+    @State private var step: OnboardingStep
 
     private let skipsAccessStep: Bool
     private let isReplay: Bool
+    private let startsAtAccess: Bool
     private let onFinish: () -> Void
 
     /// - Parameters:
     ///   - skipsAccessStep: Ends at the tour when permissions are already granted, avoiding a redundant request.
     ///   - isReplay: The user reopened the flow from Settings, so its last button closes it instead of opening Floe.
+    ///   - startsAtAccess: Shows the access step alone, for a grant that went missing after the welcome was seen.
     ///   - onFinish: Called once when the user finishes or skips the flow.
-    init(skipsAccessStep: Bool, isReplay: Bool = false, onFinish: @escaping () -> Void) {
+    init(skipsAccessStep: Bool, isReplay: Bool = false, startsAtAccess: Bool = false, onFinish: @escaping () -> Void) {
         self.skipsAccessStep = skipsAccessStep
         self.isReplay = isReplay
+        self.startsAtAccess = startsAtAccess
+        _step = State(initialValue: startsAtAccess ? .access : .welcome)
         self.onFinish = onFinish
     }
 
@@ -69,7 +73,7 @@ struct ThawOnboardingView: View {
             }
         }
         .overlay(alignment: .top) {
-            if let progress = step.progress(skipsAccessStep: skipsAccessStep) {
+            if !startsAtAccess, let progress = step.progress(skipsAccessStep: skipsAccessStep) {
                 OnboardingStepIndicator(step: progress.step, total: progress.total)
                     .padding(.top, ThawSpacing.inset)
                     .transition(.opacity)

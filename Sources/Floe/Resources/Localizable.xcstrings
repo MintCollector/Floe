@@ -520,7 +520,9 @@
     "Add a line to a note" : {},
     "Add a line with the time to today’s note" : {},
     "Add a reminder" : {},
+    "Add a reminder when you type remind and a sentence." : {},
     "Add a task to today’s note" : {},
+    "Add an event when you type event and a sentence." : {},
     "Add to Favorites" : {},
     "Add to Menu Bar" : {},
     "Added a line to the note %@" : {
@@ -728,7 +730,7 @@
     },
     "Calculator" : {},
     "Calendar" : {
-      "comment" : "Stands in for the name of a calendar that has none."
+      "comment" : "Stands in for the name of a calendar that has none.\nThe macOS permission named Calendars."
     },
     "Calendar events" : {},
     "Calendar has no calendar to add to." : {},
@@ -875,7 +877,7 @@
     },
     "Contacted" : {},
     "Contacts" : {
-      "comment" : "A section title. Contacts are the people in Apple's Contacts app.\nApple's Contacts app, as the title of a section in Privacy."
+      "comment" : "A section title. Contacts are the people in Apple's Contacts app.\nApple's Contacts app, as the title of a section in Privacy.\nThe macOS permission named Contacts."
     },
     "Continue" : {
       "comment" : "The button that goes to the next step of the welcome window."
@@ -1129,6 +1131,7 @@
       "comment" : "A kind of glass material for the launcher, as a choice in a picker."
     },
     "Each extension makes its own requests, and the images it shows are loaded from wherever it points." : {},
+    "Each one switches on the feature named under it. The launcher and your extensions work without any of them." : {},
     "Earlier commands, programs and paths appear under the command, and Tab finishes the selected one. Your shell history is read, not kept." : {},
     "Edit" : {
       "comment" : "The title of the Edit menu in the menu bar."
@@ -1255,6 +1258,7 @@
     "Find an emoji or a symbol" : {},
     "Find an item in the menu bar and open its menu." : {},
     "Find files by name" : {},
+    "Find people in your Contacts when you type contact and a name." : {},
     "Find the items in your menu bar and read their names." : {},
     "Finder" : {},
     "Finds the shortcuts you made in the Shortcuts app by name and runs the one you pick. Floe asks the Shortcuts command line tool for the names each time the launcher opens. The list stays on this Mac and is not saved. Type “shortcuts” and a space to see them all." : {
@@ -2307,7 +2311,6 @@
     "Search the menu bar" : {},
     "Search what you copied" : {},
     "Searching files…" : {},
-    "Searching the menu bar needs Accessibility. The launcher and your extensions work without it." : {},
     "Search…" : {},
     "See what Floe did, and undo it" : {},
     "See what is listening on a port" : {},
@@ -2386,6 +2389,7 @@
     "Show in Dock" : {},
     "Show in Finder" : {},
     "Show the Floe launcher." : {},
+    "Show your upcoming events and meeting links in the search." : {},
     "Shown under your results when you search." : {},
     "Shut Down" : {
       "comment" : "A command that turns the Mac off."
@@ -2933,7 +2937,7 @@
     "Yesterday" : {
       "comment" : "The heading over what was copied yesterday."
     },
-    "You can grant either one later in Settings, under General." : {},
+    "You can grant any of these later in Settings, under Privacy." : {},
     "You can put it back from the Trash until you empty it." : {},
     "You will lose any changes you haven't saved." : {},
     "Your Mac can sleep again" : {},

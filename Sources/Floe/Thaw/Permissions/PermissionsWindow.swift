@@ -31,23 +31,39 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let settings = AppSettings.shared
     private let permissions = AppPermissions.shared
+    /// The keys of the permissions the window was closed on without a grant, so each is asked about once.
+    private static let declinedKey = "declinedPermissions"
+
+    private var ungranted: Set<String> {
+        Set(permissions.allPermissions.filter { !$0.hasPermission }.map(\.key))
+    }
 
     /// Opens the window when the sequencer has something to show. Returns whether it did.
     @discardableResult
     func showIfNeeded(replayRequested: Bool = false) -> Bool {
         // Resolve the stage once per opening; the "seen" write must not change the screen under the user.
         permissions.refreshPermissionsState()
+        let stored = Set(UserDefaults.standard.stringArray(forKey: Self.declinedKey) ?? [])
+        let declined = OnboardingSequencer.stillDeclined(stored, ungranted: ungranted)
+        UserDefaults.standard.set(declined.sorted(), forKey: Self.declinedKey)
         let stage = OnboardingSequencer.stage(
             hasSeenOnboarding: settings.hasSeenOnboarding,
-            allPermissionsGranted: permissions.permissionsState == .hasAll,
+            allPermissionsGranted: permissions.hasEveryPermission,
+            hasUnanswered: OnboardingSequencer.hasUnanswered(ungranted: ungranted, declined: declined),
             replayRequested: replayRequested
         )
-        guard case let .onboarding(skipsAccessStep) = stage else { return false }
-        present(skipsAccessStep: skipsAccessStep, isReplay: replayRequested)
+        switch stage {
+        case let .onboarding(skipsAccessStep):
+            present(skipsAccessStep: skipsAccessStep, isReplay: replayRequested)
+        case .access:
+            present(skipsAccessStep: false, isReplay: false, startsAtAccess: true)
+        case .none:
+            return false
+        }
         return true
     }
 
-    private func present(skipsAccessStep: Bool, isReplay: Bool) {
+    private func present(skipsAccessStep: Bool, isReplay: Bool, startsAtAccess: Bool = false) {
         window?.close()
         let size = NSSize(width: ThawOnboardingWindowMetrics.width, height: ThawOnboardingWindowMetrics.height)
         // Resizable so the window can grow with Larger Text instead of clipping it.
@@ -64,7 +80,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
-        let view = ThawOnboardingView(skipsAccessStep: skipsAccessStep, isReplay: isReplay) { [weak self] in
+        let view = ThawOnboardingView(skipsAccessStep: skipsAccessStep, isReplay: isReplay, startsAtAccess: startsAtAccess) { [weak self] in
             self?.finish(opensLauncher: !isReplay)
         }
         .frame(minWidth: size.width, idealWidth: size.width, minHeight: size.height, idealHeight: size.height)
@@ -90,6 +106,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         guard notification.object as? NSWindow === window else { return }
         window = nil
         defer { onClose?() }
+        permissions.refreshPermissionsState()
+        UserDefaults.standard.set(ungranted.sorted(), forKey: Self.declinedKey)
         guard !settings.hasSeenOnboarding else { return }
         settings.hasSeenOnboarding = true
         settings.save()

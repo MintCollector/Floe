@@ -33,10 +33,37 @@ struct OnboardingSequencerTests {
     }
 
     @Test(arguments: bools)
-    func aSeenTourYieldsNothingWhateverIsGranted(allPermissionsGranted: Bool) {
-        // Floe runs without any grant, so a missing one never reopens the window.
+    func aSeenTourYieldsNothingWhileEveryPermissionIsAnswered(allPermissionsGranted: Bool) {
+        // A declined permission never reopens the window.
         let stage = OnboardingSequencer.stage(hasSeenOnboarding: true, allPermissionsGranted: allPermissionsGranted)
         #expect(stage == .none)
+    }
+
+    @Test func aPermissionNobodyAnsweredShowsTheAccessStepAlone() {
+        let stage = OnboardingSequencer.stage(hasSeenOnboarding: true, allPermissionsGranted: false, hasUnanswered: true)
+        #expect(stage == .access)
+    }
+
+    @Test func anUnseenTourIsShownWholeWhateverWasAnswered() {
+        let stage = OnboardingSequencer.stage(hasSeenOnboarding: false, allPermissionsGranted: false, hasUnanswered: true)
+        #expect(stage == .onboarding(skipsAccessStep: false))
+    }
+
+    @Test func aPermissionAddedByANewVersionIsUnanswered() {
+        let declined: Set = ["calendar"]
+        #expect(!OnboardingSequencer.hasUnanswered(ungranted: ["calendar"], declined: declined))
+        #expect(OnboardingSequencer.hasUnanswered(ungranted: ["calendar", "location"], declined: declined))
+    }
+
+    @Test func aDeclinedPermissionIsAskedAboutAgainOnlyAfterItWasHeld() {
+        // Declined and still not granted: remembered. Granted since: forgotten, so losing it asks again.
+        #expect(OnboardingSequencer.stillDeclined(["calendar", "contacts"], ungranted: ["calendar"]) == ["calendar"])
+        let afterTheGrant = OnboardingSequencer.stillDeclined(["accessibility"], ungranted: [])
+        #expect(OnboardingSequencer.hasUnanswered(ungranted: ["accessibility"], declined: afterTheGrant))
+    }
+
+    @Test func nothingIsUnansweredWhenEverythingIsGranted() {
+        #expect(!OnboardingSequencer.hasUnanswered(ungranted: [], declined: []))
     }
 }
 
