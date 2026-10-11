@@ -266,6 +266,7 @@
 		D7E0B83E66118210F276D33F /* Ranking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998C70C5CB4479FCE15FB95F /* Ranking.swift */; };
 		D9AF2C50FA77188325D33F47 /* SyncSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F309AEDF8D21B519596790F8 /* SyncSettingsSection.swift */; };
 		D9D14F0D9B316331EB8F5FD8 /* ShellCommand+Saving.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4879EB8733EBCA9F1DF5EF6C /* ShellCommand+Saving.swift */; };
+		DB5155E4669C36EB19D3C709 /* RootItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7094C172B1424B0A25778204 /* RootItem.swift */; };
 		DB1399B41D12729762D0AEB8 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F6717C76B587E7D9893E90 /* Views.swift */; };
 		DC38D65DEC1867DF56070A6D /* ShellCommand+Running.swift in Sources */ = {isa = PBXBuildFile; fileRef = E32F78329C981B25442EC7DA /* ShellCommand+Running.swift */; };
 		DDF1B8ED467C26191865B7F0 /* ClipboardCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C585799DE740F98865EF15 /* ClipboardCapture.swift */; };
@@ -465,6 +466,7 @@
 		6D5F5C90069D40A3353B1435 /* TabSearchSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabSearchSource.swift; sourceTree = "<group>"; };
 		6DA122EF4A321FB332D7C2F4 /* ExtensionSettingsSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSettingsSync.swift; sourceTree = "<group>"; };
 		6DCFAEAF70527DFBFD4F4FF1 /* PropFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropFormat.swift; sourceTree = "<group>"; };
+		7094C172B1424B0A25778204 /* RootItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootItem.swift; sourceTree = "<group>"; };
 		6ED07F09546BC4754F0E6C60 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		70891E9ABBE4E3EFF52220DE /* UpdatesLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesLink.swift; sourceTree = "<group>"; };
 		70B21D1572BEDAB065D80604 /* AnswerSearchProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerSearchProviders.swift; sourceTree = "<group>"; };
@@ -1011,6 +1013,7 @@
 				0454DDF1AC4E2934C468C3A3 /* Model+Search.swift */,
 				DD2D070B65C29C80130B70B2 /* Model+Setup.swift */,
 				F008D9038CE639EA7F6504A1 /* Model+Shell.swift */,
+				7094C172B1424B0A25778204 /* RootItem.swift */,
 				0B3B446234EAFBF1F5F00CCB /* Model+Timers.swift */,
 				6340BAF88C611B59A548F533 /* PanelBottomBar.swift */,
 				8C1DA7F52B1E57FBB729318A /* PanelSections.swift */,
@@ -1483,6 +1486,7 @@
 				1E29E64A831EFEB4ED4737B3 /* QuicklinksSettingsPage.swift in Sources */,
 				D7E0B83E66118210F276D33F /* Ranking.swift in Sources */,
 				AE1EB6FEDD10E7D4504EF711 /* RaycastSignInNotice.swift in Sources */,
+				DB5155E4669C36EB19D3C709 /* RootItem.swift in Sources */,
 				7010C68F03A8AC111BA76ABA /* ReadingPage.swift in Sources */,
 				22BDA1B7F111A307F7D250EB /* ReadingWindow.swift in Sources */,
 				986F8CAC6A66B0930D4280AF /* Receipts.swift in Sources */,
