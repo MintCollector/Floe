@@ -233,15 +233,16 @@ export class PKCEClient {
   }
 
   async authorize(requestOrOptions: AuthorizationRequest | { url: string }): Promise<{ authorizationCode: string }> {
-    if (!signInIsOn()) throw signInUnavailable(this.options.providerName);
+    if (!signInIsOn() || !isReceivable(this.options.redirectMethod)) throw signInUnavailable(this.options.providerName);
     const url = requestOrOptions instanceof AuthorizationRequest ? requestOrOptions.toURL() : requestOrOptions.url;
-    const state = requestOrOptions instanceof AuthorizationRequest ? requestOrOptions.state : (requestOrOptions as { state?: string }).state;
+    const state = new URL(url).searchParams.get("state");
+    if (!state) throw new Error("OAuth authorization URL has no state");
     const response = await request("oauth.authorize", { url, state, providerName: this.options.providerName });
     const callback = typeof response === "string" ? response : (response?.url as string);
     const params = new URL(callback).searchParams;
     const error = params.get("error");
     if (error) throw new Error(params.get("error_description") ?? error);
-    if (state !== undefined && params.get("state") !== state) throw new Error("OAuth state mismatch");
+    if (params.get("state") !== state) throw new Error("OAuth state mismatch");
     const code = params.get("code");
     if (!code) throw new Error("OAuth callback has no authorization code");
     return { authorizationCode: code };

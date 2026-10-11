@@ -764,6 +764,43 @@ describe("OAuth with sign-in on", () => {
     expect(sent("request")).toEqual([]);
   });
 
+  test("custom URLs also fall back when the redirect cannot reach Floe", async () => {
+    ctx.manifest = { name: "calendar", preferences: [{ name: "apiKey", type: "password" }] };
+    for (const redirectMethod of [api.OAuth.RedirectMethod.App, api.OAuth.RedirectMethod.AppURI]) {
+      const client = new api.OAuth.PKCEClient({ redirectMethod, providerName: "Google" });
+      const authorized = client.authorize({ url: "https://example.com/auth?state=original" });
+      const message = sent("request").at(-1);
+      if (message) handleReply({ id: message.id, error: "Unexpected browser request" });
+      await expect(authorized).rejects.toThrow("Floe can't sign in to Google yet.");
+    }
+    expect(sent("signIn")).toHaveLength(2);
+    expect(sent("request")).toEqual([]);
+  });
+
+  test("custom web URLs send and validate the state embedded in the URL", async () => {
+    const client = new api.OAuth.PKCEClient(clientOptions);
+    const request = await client.authorizationRequest({ endpoint: "https://example.com/auth", clientId: "c", scope: "s" });
+    const authorized = client.authorize({ url: request.toURL() });
+    const [message] = sent("request");
+    expect(message.params.state).toBe(request.state);
+    handleReply({ id: message.id, result: { url: `floe://oauth?code=abc&state=${request.state}` } });
+    await expect(authorized).resolves.toEqual({ authorizationCode: "abc" });
+  });
+
+  test("a custom URL callback with a different state is rejected", async () => {
+    const client = new api.OAuth.PKCEClient(clientOptions);
+    const authorized = client.authorize({ url: "https://example.com/auth?state=expected" });
+    const [message] = sent("request");
+    handleReply({ id: message.id, result: { url: "floe://oauth?code=abc&state=wrong" } });
+    await expect(authorized).rejects.toThrow("OAuth state mismatch");
+  });
+
+  test("a custom URL without state fails before opening the browser", async () => {
+    const client = new api.OAuth.PKCEClient(clientOptions);
+    await expect(client.authorize({ url: "https://example.com/auth" })).rejects.toThrow("OAuth authorization URL has no state");
+    expect(sent("request")).toEqual([]);
+  });
+
   test("authorize resolves the code from the app's callback", async () => {
     ctx.manifest = { name: "github" };
     const client = new api.OAuth.PKCEClient(clientOptions);
