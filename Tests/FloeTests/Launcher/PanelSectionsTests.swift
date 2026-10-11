@@ -93,6 +93,16 @@ struct PanelSectionsTests {
         #expect(SearchFieldShape.rounded.pieceCornerStyle == .continuous)
     }
 
+    @Test(arguments: SearchFieldShape.allCases)
+    func aListIsClippedToTheCornersTheResultsPieceIsDrawnWith(shape: SearchFieldShape) {
+        let look = LauncherLook(glass: LauncherGlass(style: .dynamic), tint: LauncherTint(), border: LauncherBorder(), hasShadow: true)
+        let pieces = PanelPieces(look: look, fieldShape: shape, heights: LauncherPanelState().pieceHeights(in: .extended))
+        let drawn = pieces.resultsAppearance()
+        let outline = pieces.resultsOutline()
+        #expect(outline.cornerSize == CGSize(width: drawn.cornerRadius, height: drawn.cornerRadius), "a scroll bar stays inside the piece")
+        #expect(outline.style == drawn.cornerStyle)
+    }
+
     @Test func aRowsHighlightIsConcentricWithTheResultsPiece() {
         let look = LauncherLook(glass: LauncherGlass(style: .dynamic), tint: LauncherTint(), border: LauncherBorder(), hasShadow: true)
         let heights = LauncherPanelState().pieceHeights(in: .extended)

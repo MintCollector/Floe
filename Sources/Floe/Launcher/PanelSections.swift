@@ -18,6 +18,11 @@ struct PanelPieces: Equatable {
         RoundedRectangle(cornerRadius: fieldShape.fieldPieceRadius(height: heights.field), style: fieldShape.pieceCornerStyle)
     }
 
+    /// The results piece's edge. A list is clipped to it, so a scroll bar stays inside the corner.
+    func resultsOutline() -> RoundedRectangle {
+        RoundedRectangle(cornerRadius: fieldShape.panelPieceRadius, style: .continuous)
+    }
+
     /// The look for the field's piece. Collapsed there is nothing under it, so its shadow is whole.
     func fieldAppearance(facesResults: Bool) -> LauncherPanelAppearance {
         var appearance = LauncherPanelAppearance(look)
@@ -80,6 +85,9 @@ struct PanelSections<Header: View, Content: View>: View {
                 if showsContent {
                     GlassEffectContainer {
                         VStack(spacing: 0) { content }
+                            // The scroll bar starts below the corner, and what still reaches it is cut off there.
+                            .contentMargins(.top, pieces.fieldShape.panelPieceRadius, for: .scrollIndicators)
+                            .clipShape(pieces.resultsOutline())
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: pieces.heights.results)
