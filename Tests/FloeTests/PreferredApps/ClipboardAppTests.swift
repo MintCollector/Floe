@@ -57,6 +57,8 @@ struct ClipboardAppTests {
     init() throws {
         scratch = try ScratchDefaults()
         settings = AppSettings(defaults: scratch.defaults, savesAfterEdits: false)
+        // Floe's own history is parked: these tests cover it as it is when brought back.
+        settings.clipboardHistoryIsParked = false
     }
 
     /// A model on scratch settings whose lookups, opener, HUD and panel are the test's own.
@@ -70,7 +72,7 @@ struct ClipboardAppTests {
     }
 
     private func destination(_ handler: ClipboardHandler, choice: AppChoice? = nil, link: String = "", on lookup: AppLookup = Fake.mac()) -> ClipboardDestination {
-        ClipboardApps.destination(handler: handler, choice: choice, link: link, installed: lookup)
+        ClipboardApps.destination(handler: handler, choice: choice, link: link, installed: lookup, parked: false)
     }
 
     /// Lets what the model queued on the main queue run, without waiting for time to pass.
@@ -136,7 +138,7 @@ struct ClipboardAppTests {
     @Test(arguments: ClipboardHandler.allCases, [true, false])
     func copiesAreSavedOnlyByFloeWithItsSwitchOn(handler: ClipboardHandler, historyEnabled: Bool) {
         let expected = handler == .floe && historyEnabled
-        #expect(ClipboardApps.records(handler: handler, historyEnabled: historyEnabled) == expected)
+        #expect(ClipboardApps.records(handler: handler, historyEnabled: historyEnabled, parked: false) == expected)
         settings.clipboardHandler = handler
         settings.clipboardHistoryEnabled = historyEnabled
         #expect(settings.recordsClipboardHistory == expected)
@@ -148,6 +150,31 @@ struct ClipboardAppTests {
         #expect(!settings.recordsClipboardHistory)
         settings.clipboardHandler = .link
         settings.clipboardURL = ""
+        #expect(!settings.recordsClipboardHistory)
+    }
+
+    // MARK: Parked
+
+    @Test(arguments: ClipboardHandler.allCases)
+    func parkedFloeSavesNoCopiesAndOffersNoScopeWhateverIsChosen(handler: ClipboardHandler) {
+        #expect(!ClipboardApps.records(handler: handler, historyEnabled: true, parked: true))
+        let scopes: [any SearchScope] = [FileSearchScope(), ClipboardSearchScope(entries: { [] })]
+        #expect(ClipboardApps.scopes(scopes, handler: handler, parked: true).map(\.keyword) == ["files"])
+    }
+
+    @Test func parkedTheCommandAsksForAnAppUntilOneIsChosen() {
+        let unset = ClipboardApps.destination(handler: .floe, choice: nil, link: "", installed: Fake.mac(), parked: true)
+        #expect(unset == .unavailable(app: nil, message: "Choose a clipboard app in Settings"))
+        let chosen = ClipboardApps.destination(handler: .app, choice: Fake.clippyChoice, link: "", installed: Fake.mac(), parked: true)
+        #expect(chosen.app?.url == Fake.clippy)
+    }
+
+    @Test func parkedTheModelNeverOpensFloesOwnHistory() {
+        settings.clipboardHistoryIsParked = true
+        let model = makeModel()
+        model.openClipboardHistory()
+        #expect(!model.isShowingClipboardHistory)
+        #expect(opened.hud == ["Choose a clipboard app in Settings"])
         #expect(!settings.recordsClipboardHistory)
     }
 
@@ -202,11 +229,11 @@ struct ClipboardAppTests {
 
     // MARK: The picker
 
-    @Test func thePickerOffersFloeThenTheKnownAppsThatAreInstalled() {
-        #expect(PreferredApps.options(for: .clipboard, choice: nil, installed: Fake.mac()).map(\.title) == ["Floe", "Raycast"])
-        #expect(PreferredApps.options(for: .clipboard, choice: nil, installed: Fake.mac([:])).map(\.title) == ["Floe"])
+    @Test func thePickerOffersNoneThenTheKnownAppsThatAreInstalled() {
+        #expect(PreferredApps.options(for: .clipboard, choice: nil, installed: Fake.mac()).map(\.title) == ["None", "Raycast"])
+        #expect(PreferredApps.options(for: .clipboard, choice: nil, installed: Fake.mac([:])).map(\.title) == ["None"])
         let options = PreferredApps.options(for: .clipboard, choice: Fake.clippyChoice, installed: Fake.mac())
-        #expect(options.map(\.title) == ["Floe", "Raycast", "Clippy"])
+        #expect(options.map(\.title) == ["None", "Raycast", "Clippy"])
         #expect(options.first?.choice == nil)
         #expect(PreferredApps.options(for: .clipboard, choice: Fake.clippyChoice, installed: Fake.mac([:])).last?.title == "Clippy (not installed)")
     }
@@ -265,7 +292,7 @@ struct ClipboardAppTests {
     @Test(arguments: ClipboardHandler.allCases)
     func theClipboardScopeIsOfferedOnlyWhileFloeKeepsTheHistory(handler: ClipboardHandler) {
         let scopes: [any SearchScope] = [FileSearchScope(), ClipboardSearchScope(entries: { [] }), MenuBarSearchScope()]
-        let offered = ClipboardApps.scopes(scopes, handler: handler).map(\.keyword)
+        let offered = ClipboardApps.scopes(scopes, handler: handler, parked: false).map(\.keyword)
         #expect(offered == (handler == .floe ? ["files", "clipboard", "menu"] : ["files", "menu"]))
     }
 
@@ -390,13 +417,13 @@ struct ClipboardAppTests {
         #expect(ClipboardApps.settingsNotice(for: .unavailable(app: nil, message: "")) == "Clipboard history is handled by another app. Floe saves no copies.")
     }
 
-    @Test func theSettingsSearchFindsTheRoleAndBothClipboardControls() {
+    @Test func theSettingsSearchFindsTheRoleAndClearingButNotTheParkedSwitch() {
         let entries = SearchIndex.generalEntries.filter { SearchIndex.clipboardEntries.map(\.id).contains($0.id) }
-        #expect(entries.map(\.id) == ["general.clipboardApp", "general.clipboardHistory", "general.clearClipboardHistory"])
-        #expect(entries.map(\.section) == ["Preferred Apps", "Clipboard", "Clipboard"], "the section stays in view whatever app is chosen")
+        #expect(entries.map(\.id) == ["general.clipboardApp", "general.clearClipboardHistory"])
+        #expect(entries.map(\.section) == ["Preferred Apps", "Clipboard"], "the section stays in view whatever app is chosen")
         #expect(entries.first?.title == AppRole.clipboard.title)
         #expect(entries.first?.descriptionText == AppRole.clipboard.detail)
-        #expect(SearchIndex.staticEntries.filter { $0.id == "general.clipboardHistory" }.count == 1)
-        #expect(AppRole.clipboard.detail.contains("keeps the history it has"))
+        #expect(SearchIndex.staticEntries.filter { $0.id == "general.clipboardHistory" }.isEmpty)
+        #expect(AppRole.clipboard.detail == "Opens from Clipboard History in the search.")
     }
 }

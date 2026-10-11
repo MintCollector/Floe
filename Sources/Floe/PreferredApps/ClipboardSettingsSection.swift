@@ -83,8 +83,8 @@ struct ClipboardAppPicker: View {
     }
 }
 
-/// Floe's own clipboard history. The switch is off and locked while another app keeps the history;
-/// Clear History stays, because the copies saved before are still on disk.
+/// Floe's own clipboard history. The switch is off and locked while another app keeps the history, and gone
+/// while the history is parked. Clear History stays, because the copies saved before are still on disk.
 struct ClipboardSettingsSection: View {
     @ObservedObject var settings: AppSettings
     var installed = AppLookup.system
@@ -95,11 +95,13 @@ struct ClipboardSettingsSection: View {
 
     var body: some View {
         ThawSection("Clipboard") {
-            Toggle(isOn: Binding(get: { settings.recordsClipboardHistory }, set: { settings.clipboardHistoryEnabled = $0 })) {
-                Text("Save clipboard history")
-                Text(notice ?? String(localized: "Keeps text, links, images and files you copy. Pins survive Clear.", bundle: .floe))
+            if !settings.clipboardHistoryIsParked {
+                Toggle(isOn: Binding(get: { settings.recordsClipboardHistory }, set: { settings.clipboardHistoryEnabled = $0 })) {
+                    Text("Save clipboard history")
+                    Text(notice ?? String(localized: "Keeps text, links, images and files you copy. Pins survive Clear.", bundle: .floe))
+                }
+                .disabled(notice != nil)
             }
-            .disabled(notice != nil)
             LabeledContent("History") {
                 // The history is the launcher's: it is the one that watches the clipboard.
                 Button("Clear History") { ProcessLink.current?.send(.clearClipboardHistory) }

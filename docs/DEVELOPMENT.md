@@ -107,7 +107,8 @@ pair as its sender. The welcome window at first launch is still the launcher's.
     a link for Antinote or a custom app, a script for Apple Notes. A new role is a case of `AppRole` plus, when it
     takes text, an adapter like that one.
   - The clipboard role is handed nothing: Clipboard History opens the chosen app, or a link, in place of Floe's own
-    history (`ClipboardApp.swift`). `ClipboardApps.destination` decides where the command goes and never falls back
+    history (`ClipboardApp.swift`). Floe's own history is parked by `ClipboardApps.ownHistoryIsParked`: nothing is
+    saved, the pasteboard is not watched, and the command asks for an app until one is chosen. `ClipboardApps.destination` decides where the command goes and never falls back
     to Floe's history; `records` is the one place that says whether copies are saved (the role is Floe and the
     switch is on). An app whose history opens from a link goes in `ClipboardApps.links`, with a link confirmed from
     the installed copy.

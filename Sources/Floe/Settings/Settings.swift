@@ -59,6 +59,8 @@ final class AppSettings: ObservableObject {
     @Published var browserApp: AppChoice?
     /// The clipboard role's choice: Floe's own history, an app, or the link that opens an app's history.
     @Published var clipboardHandler = ClipboardHandler.floe
+    /// Not saved: tests turn it off to reach Floe's own history.
+    var clipboardHistoryIsParked = ClipboardApps.ownHistoryIsParked
     @Published var clipboardApp: AppChoice?
     @Published var clipboardURL = ""
     /// Names given to menu bar items with Edit Name, keyed by `MenuBarExtra.id`.

@@ -1907,6 +1907,7 @@
     "Opening What’s New from About reads Floe’s changelog from GitHub and keeps the last copy." : {},
     "Opens a file or a folder from the Actions menu or from Finder." : {},
     "Opens a folder from the Actions menu or from Finder, and the SSH hosts you pick in the search." : {},
+    "Opens from Clipboard History in the search." : {},
     "Opens from Clipboard History in the search. With another app chosen, Floe saves no copies and keeps the history it has." : {},
     "Opens the app, or hides it if it's already in front." : {},
     "Opens web addresses, quicklinks and the other web links you open from Floe." : {},

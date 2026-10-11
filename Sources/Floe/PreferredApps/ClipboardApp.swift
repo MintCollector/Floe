@@ -76,9 +76,13 @@ enum ClipboardApps {
     /// copy: the identifier from its Info.plist, the link from how the app builds its own deeplinks.
     static let links = ["com.raycast.macos": "raycast://extensions/raycast/clipboard-history/clipboard-history"]
 
+    /// Floe's own history is parked: the command only goes to the clipboard app the user chose, and no copy is saved.
+    /// To bring it back, turn this off. The settings, the store and the view are all still here.
+    static let ownHistoryIsParked = true
+
     /// Floe saves copies only while it is the clipboard manager and its switch is on.
-    static func records(handler: ClipboardHandler, historyEnabled: Bool) -> Bool {
-        handler == .floe && historyEnabled
+    static func records(handler: ClipboardHandler, historyEnabled: Bool, parked: Bool = ownHistoryIsParked) -> Bool {
+        handler == .floe && historyEnabled && !parked
     }
 
     /// A link as typed: a URL with a scheme, or nil.
@@ -89,10 +93,17 @@ enum ClipboardApps {
     }
 
     /// Where the command goes. A choice that cannot be opened says so and never becomes Floe's history.
-    static func destination(handler: ClipboardHandler, choice: AppChoice?, link: String, installed: AppLookup) -> ClipboardDestination {
+    static func destination(
+        handler: ClipboardHandler,
+        choice: AppChoice?,
+        link: String,
+        installed: AppLookup,
+        parked: Bool = ownHistoryIsParked
+    ) -> ClipboardDestination {
         switch handler {
         case .floe:
-            return .floe
+            // Parked, having chosen Floe is having chosen nothing yet.
+            return parked ? .unavailable(app: nil, message: String(localized: "Choose a clipboard app in Settings", bundle: .floe)) : .floe
         case .app:
             guard let choice else {
                 return .unavailable(app: nil, message: String(localized: "Choose a clipboard app in Settings", bundle: .floe))
@@ -118,8 +129,8 @@ enum ClipboardApps {
     }
 
     /// The scopes the root search offers: the “clipboard” scope searches Floe's history, so it goes with it.
-    static func scopes(_ scopes: [any SearchScope], handler: ClipboardHandler) -> [any SearchScope] {
-        handler == .floe ? scopes : scopes.filter { !($0 is ClipboardSearchScope) }
+    static func scopes(_ scopes: [any SearchScope], handler: ClipboardHandler, parked: Bool = ownHistoryIsParked) -> [any SearchScope] {
+        handler == .floe && !parked ? scopes : scopes.filter { !($0 is ClipboardSearchScope) }
     }
 
     /// The command's row: Floe's own, or one that shows where it goes.
@@ -150,11 +161,11 @@ extension ClipboardApps {
 extension AppSettings {
     /// Whether copies are saved now: the user's switch, and Floe being the clipboard manager.
     var recordsClipboardHistory: Bool {
-        ClipboardApps.records(handler: clipboardHandler, historyEnabled: clipboardHistoryEnabled)
+        ClipboardApps.records(handler: clipboardHandler, historyEnabled: clipboardHistoryEnabled, parked: clipboardHistoryIsParked)
     }
 
     func clipboardDestination(installed: AppLookup) -> ClipboardDestination {
-        ClipboardApps.destination(handler: clipboardHandler, choice: clipboardApp, link: clipboardURL, installed: installed)
+        ClipboardApps.destination(handler: clipboardHandler, choice: clipboardApp, link: clipboardURL, installed: installed, parked: clipboardHistoryIsParked)
     }
 }
 
@@ -173,6 +184,7 @@ extension SearchIndex {
                 comment: "Words that find the Clipboard app setting in the settings search, separated by commas."
             ).searchTerms
         ),
+    ] + (ClipboardApps.ownHistoryIsParked ? [] : [
         .general(
             "clipboardHistory",
             String(localized: "Save clipboard history", bundle: .floe),
@@ -184,6 +196,7 @@ extension SearchIndex {
                 comment: "Words that find the Save clipboard history setting in the settings search, separated by commas."
             ).searchTerms
         ),
+    ]) + [
         .general(
             "clearClipboardHistory",
             String(localized: "Clear clipboard history", bundle: .floe),

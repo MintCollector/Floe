@@ -60,6 +60,7 @@ enum AppRole: String, CaseIterable, Identifiable {
         case .editor: String(localized: "Opens a file or a folder from the Actions menu or from Finder.", bundle: .floe)
         case .browser: String(localized: "Opens web addresses, quicklinks and the other web links you open from Floe.", bundle: .floe)
         case .notes: String(localized: "Type “note” and then your text in the search to send it there.", bundle: .floe, comment: "The word in quotation marks is typed as it is and stays in English.")
+        case .clipboard where ClipboardApps.ownHistoryIsParked: String(localized: "Opens from Clipboard History in the search.", bundle: .floe)
         case .clipboard: String(localized: "Opens from Clipboard History in the search. With another app chosen, Floe saves no copies and keeps the history it has.", bundle: .floe)
         }
     }
@@ -105,7 +106,7 @@ enum AppRole: String, CaseIterable, Identifiable {
             appName.map { String(localized: "Default Browser (\($0))", bundle: .floe, comment: "The placeholder is the name of an app.") }
                 ?? String(localized: "Default Browser", bundle: .floe)
         case .notes: NotesApp.appleNotes.title
-        case .clipboard: "Floe"
+        case .clipboard: ClipboardApps.ownHistoryIsParked ? String(localized: "None", bundle: .floe) : "Floe"
         }
     }
 

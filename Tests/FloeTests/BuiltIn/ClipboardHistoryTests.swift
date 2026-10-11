@@ -543,6 +543,14 @@ final class ClipboardHistoryTests {
         try expectConsistent(store)
     }
 
+    @Test func theStoredImageIsAtMostTheLimitOnItsLongerSideAndNeverLarger() throws {
+        let large = try #require(ClipboardHistoryStore.downsampledPNG(png(width: 4096, height: 8)))
+        #expect(NSBitmapImageRep(data: large)?.pixelsWide == Int(ClipboardHistoryStore.imageMaxDimension))
+        let small = try #require(ClipboardHistoryStore.downsampledPNG(png(width: 40, height: 8)))
+        #expect(NSBitmapImageRep(data: small)?.pixelsWide == 40)
+        #expect(ClipboardHistoryStore.downsampledPNG(Data("not an image".utf8)) == nil)
+    }
+
     @Test func anImageThatCannotBeReadBecomesItsText() {
         let store = makeStore()
         store.record(image(Data("not an image".utf8), at: 1, fallbackText: "https://example.com/page "))

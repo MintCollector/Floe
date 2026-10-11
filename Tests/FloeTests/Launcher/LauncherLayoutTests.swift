@@ -102,6 +102,7 @@ struct LauncherLayoutTests {
 
     @Test func thePanelSizeFollowsTheQueryTheViewAndTheSetting() {
         let settings = makeSettings()
+        settings.clipboardHistoryIsParked = false
         let model = LauncherModel(settings: settings, snapshot: CatalogSnapshot(apps: [], commands: []))
         var sizes: [NSSize] = []
         let subscription = model.panelWindowSizes(settings: settings).sink { sizes.append($0) }

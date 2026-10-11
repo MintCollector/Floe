@@ -98,8 +98,10 @@ final class ClipboardHistoryModelTests {
     }
 
     @Test func theLauncherShowsTheHistoryAndTypingInItDoesNotRepublishTheLauncher() throws {
+        let settings = AppSettings(defaults: scratch)
+        settings.clipboardHistoryIsParked = false
         let launcher = LauncherModel(
-            settings: AppSettings(defaults: scratch), usage: UsageStore(defaults: scratch),
+            settings: settings, usage: UsageStore(defaults: scratch),
             snapshot: CatalogSnapshot(apps: [], commands: []), scopes: [], sources: []
         )
         launcher.clipboardHistory.query = "left over"

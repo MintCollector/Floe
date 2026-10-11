@@ -24,7 +24,7 @@ After you install:
 
 - **One hotkey opens the search.** It finds applications, extension commands, script commands, quicklinks and System Settings panes, and ranks them by how often and how recently you use each. Web apps a browser installed are found too. Two apps with the same name each get their own row. Scattered letters match, and the ones that matched show in a stronger weight.
 - **Aliases, hotkeys and favorites.** Give an application or a command an alias or a hotkey. Emoji, Clipboard History, File Search and the system commands take a hotkey too, in Settings > General. Favorites stay at the top.
-- **Scopes narrow a search to one place:** `files invoice`, `clipboard meeting`, `menu wifi`, `tabs invoice`.
+- **Scopes narrow a search to one place:** `files invoice`, `menu wifi`, `tabs invoice`.
 - **A web address or a path typed in full leads the results.** `github.com/thaw-app` opens in the browser. `~/Downloads` is the folder itself, with the file actions.
 - **`keywords` or `?` lists every word the search answers to**, each with an example and what it does: `remind call mom tomorrow at 5pm`, `timer 10 minutes tea`. Type more to narrow the list. Return puts the keyword in the search for you to finish. What is switched off is left out.
 
@@ -95,7 +95,7 @@ After you install:
 
 ### New: built in
 
-- **Clipboard history, snippets with text expansion, and quicklinks** with fallback searches. By @OwenCope in [#6](https://github.com/thaw-app/Floe/pull/6).
+- **Snippets with text expansion, and quicklinks** with fallback searches. By @OwenCope in [#6](https://github.com/thaw-app/Floe/pull/6).
 - **A calculator with unit conversion.** It converts money with the European Central Bank's daily rates once you turn that on in Settings > Privacy, and shows the day the rates are from. Powers are drawn as real superscripts, and `pi` is π. By @lylythechosenone in [#7](https://github.com/thaw-app/Floe/pull/7).
 - **Emoji and symbols.** Hands and people use the skin tone you choose in Settings > General. By @OwenCope in [#6](https://github.com/thaw-app/Floe/pull/6).
 - **File search, calendar events and menu bar item search.** Menu bar search lists the menu bar's items and opens their menus from the keyboard. File search asks Spotlight. Switch on Fast file search in Settings > Privacy and Floe keeps the names of the files in your home folder in memory and answers from those: scattered letters match, at each key, and files you opened lately come first. macOS then asks whether Floe may read your Desktop, Documents and Downloads folders. By @OwenCope in [#6](https://github.com/thaw-app/Floe/pull/6).
@@ -104,7 +104,7 @@ After you install:
 ### New: your own apps
 
 - **Preferred apps:** a terminal, an editor, a browser and a notes app. Files, folders and the Finder selection open in them, and web links open in the browser you choose. The editor can be one that runs in your terminal: Helix, Neovim, Vim, Emacs and others on your Mac are offered by name. Open With sends one link to another browser.
-- **A preferred clipboard app.** Choose a clipboard manager and Clipboard History opens it. Floe then saves no copies of its own.
+- **A preferred clipboard app.** Choose a clipboard manager and Clipboard History opens it. Floe keeps no clipboard history of its own.
 - **SSH hosts.** The hosts in `~/.ssh/config` are in the search, and `ssh` and a space lists them. Return connects in your terminal. Floe reads the names and keeps nothing.
 - **Apple Shortcuts**, once turned on in Settings > Privacy. Return runs one in the background. If it fails, Floe shows the reason Shortcuts gave.
 
@@ -138,7 +138,7 @@ After you install:
 
 - **Settings sync with iCloud**, off until you switch it on in Settings > General. Aliases, hotkeys, favorites, hidden results, appearance, snippets, quicklinks and extension settings are the same on your Macs, and the newest change wins.
 - **Passwords through iCloud Keychain**, a second switch that is off until you choose it. Extension passwords and API keys become iCloud Keychain items; off copies them back to this Mac and leaves them in iCloud Keychain.
-- **Some things stay on each Mac:** folders, permissions, AI settings, an extension's files, folders and chosen apps, sign-ins, clipboard history and receipts. Remove Settings from iCloud deletes iCloud's copy and switches sync off on every Mac.
+- **Some things stay on each Mac:** folders, permissions, AI settings, an extension's files, folders and chosen apps, sign-ins and receipts. Remove Settings from iCloud deletes iCloud's copy and switches sync off on every Mac.
 
 ### Known issues
 

@@ -391,7 +391,7 @@ final class LauncherModel: ObservableObject {
         let context = searchContext()
         // A source that is switched on also answers to its keyword, after the scopes that are always there.
         let enabled = RootSearch.enabled(sources, in: settings.searchSources)
-        guard let match = RootSearch.scope(in: context, scopes: ClipboardApps.scopes(scopes, handler: settings.clipboardHandler) + enabled) else {
+        guard let match = RootSearch.scope(in: context, scopes: ClipboardApps.scopes(scopes, handler: settings.clipboardHandler, parked: settings.clipboardHistoryIsParked) + enabled) else {
             activeScope = nil
             scopeUpdates.cancel()
             selection = 0
