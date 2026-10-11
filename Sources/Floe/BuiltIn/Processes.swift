@@ -106,16 +106,19 @@ nonisolated enum Processes {
             var pids = [pid_t](repeating: 0, count: Int(proc_listallpids(nil, 0)) + 64)
             let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
             var path = [CChar](repeating: 0, count: 4096)
-            return pids.prefix(max(0, count)).compactMap { pid -> RunningProcess? in
-                // Another user's process answers with nothing, and could not be ended anyway.
-                let length = pid > 0 ? Int(proc_pidpath(pid, &path, UInt32(path.count))) : 0
-                guard length > 0, let location = String(bytes: path.prefix(length).map { UInt8(bitPattern: $0) }, encoding: .utf8) else { return nil }
-                var usage = rusage_info_v2()
-                let read = withUnsafeMutablePointer(to: &usage) {
-                    $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
-                }
-                return RunningProcess(pid: pid, path: location, memory: read == 0 ? usage.ri_phys_footprint : 0)
-            }
+            return pids.prefix(max(0, count)).compactMap { process($0, path: &path) }
         }
+    }
+
+    /// One process with where it runs from and the memory it holds. `path` is room to write into, reused for each.
+    private static func process(_ pid: pid_t, path: inout [CChar]) -> RunningProcess? {
+        // Another user's process answers with nothing, and could not be ended anyway.
+        let length = pid > 0 ? Int(proc_pidpath(pid, &path, UInt32(path.count))) : 0
+        guard length > 0, let location = String(bytes: path.prefix(length).map { UInt8(bitPattern: $0) }, encoding: .utf8) else { return nil }
+        var usage = rusage_info_v2()
+        let read = withUnsafeMutablePointer(to: &usage) {
+            $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
+        }
+        return RunningProcess(pid: pid, path: location, memory: read == 0 ? usage.ri_phys_footprint : 0)
     }
 }

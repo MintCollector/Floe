@@ -939,6 +939,6 @@ final class LauncherModel: ObservableObject {
 private extension Published.Publisher {
     /// The changes only, not the value: what a cache drop listens for.
     func mapVoid() -> AnyPublisher<Void, Never> {
-        map { _ in }.eraseToAnyPublisher()
+        map { _ in () }.eraseToAnyPublisher()
     }
 }

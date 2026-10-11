@@ -90,14 +90,14 @@ final nonisolated class FileIndexService: Sendable {
     private func start() {
         guard let index = try? FileIndex() else { return }
         let root = environment.root()
+        let changed: @Sendable ([FileIndexChange]) -> Void = { [weak self] changes in
+            guard let self else { return }
+            work.async { self.apply(changes, to: index) }
+        }
         let started = running.withLock { running in
             guard running == nil else { return false }
             // Watching starts before the walk, so what changes during it is read again afterwards.
-            let stop = environment.watch(root) { [weak self] changes in
-                guard let self else { return }
-                work.async { self.apply(changes, to: index) }
-            }
-            running = Running(index: index, root: root, stop: stop)
+            running = Running(index: index, root: root, stop: environment.watch(root, changed))
             return true
         }
         guard started else { return }

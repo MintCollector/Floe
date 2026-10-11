@@ -110,7 +110,10 @@ export function observe(options: { own: string[]; report: (found: AccessReport) 
     }
   }
 
-  const pathOf = (target: unknown) => (typeof target === "string" ? target : target instanceof URL ? target.pathname : undefined);
+  const pathOf = (target: unknown) => {
+    if (typeof target === "string") return target;
+    return target instanceof URL ? target.pathname : undefined;
+  };
   const read = (target: unknown) => note("reads", pathOf(target) && place(pathOf(target)!, options.own));
   const write = (target: unknown) => note("writes", pathOf(target) && place(pathOf(target)!, options.own));
 
@@ -130,6 +133,6 @@ export function observe(options: { own: string[]; report: (found: AccessReport) 
   return () => {
     if (timer) clearTimeout(timer);
     flush();
-    for (const { owner, name, original } of wrapped.reverse()) owner[name] = original;
+    for (const { owner, name, original } of wrapped.toReversed()) owner[name] = original;
   };
 }

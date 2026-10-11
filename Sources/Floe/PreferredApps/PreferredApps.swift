@@ -124,7 +124,11 @@ enum PreferredApps {
         TerminalEditor.known.compactMap { editor in
             installed.program(editor.command).map { program in
                 let flavor = editor.command == TerminalEditor.neovim ? installed.neovimFlavor() : nil
-                let title = flavor.map { "\(editor.title) (\($0))" } ?? editor.title
+                let title = if let flavor {
+                    "\(editor.title) (\(flavor))"
+                } else {
+                    editor.title
+                }
                 return AppOption(choice: AppChoice(bundleIdentifier: nil, path: program.path), title: title, url: program)
             }
         }

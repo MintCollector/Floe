@@ -54,12 +54,12 @@ nonisolated enum FileIndexEvents {
         return { stream.stop() }
     }
 
-    /// The stream holds this, so a callback in flight never finds it gone. `stream` is only touched on `queue` once started.
+    /// The stream holds this, so a callback in flight never finds it gone. `events` is only touched on `queue` once started.
     private final class Stream: @unchecked Sendable {
         private let root: String
         private let deliver: @Sendable ([FileIndexChange]) -> Void
         private let queue = DispatchQueue(label: "floe.file-index-events", qos: .utility)
-        private var stream: FSEventStreamRef?
+        private var events: FSEventStreamRef?
 
         init(root: String, deliver: @escaping @Sendable ([FileIndexChange]) -> Void) {
             self.root = root
@@ -85,11 +85,11 @@ nonisolated enum FileIndexEvents {
             guard let stream = FSEventStreamCreate(
                 nil, Self.callback, &context, [root] as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), FileIndexEvents.latency, flags
             ) else { return false }
-            self.stream = stream
+            events = stream
             FSEventStreamSetExclusionPaths(stream, FileIndexEvents.excludedPaths(under: root) as CFArray)
             FSEventStreamSetDispatchQueue(stream, queue)
             guard FSEventStreamStart(stream) else {
-                self.stream = nil
+                events = nil
                 FSEventStreamInvalidate(stream)
                 FSEventStreamRelease(stream)
                 return false
@@ -99,8 +99,8 @@ nonisolated enum FileIndexEvents {
 
         func stop() {
             queue.async {
-                guard let stream = self.stream else { return }
-                self.stream = nil
+                guard let stream = self.events else { return }
+                self.events = nil
                 FSEventStreamStop(stream)
                 FSEventStreamInvalidate(stream)
                 FSEventStreamRelease(stream)
@@ -112,7 +112,7 @@ nonisolated enum FileIndexEvents {
             let stream = Unmanaged<Stream>.fromOpaque(info).takeUnretainedValue()
             let paths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue() as? [String] ?? []
             let changes = FileIndexEvents.changes(paths: paths, flags: Array(UnsafeBufferPointer(start: eventFlags, count: count)))
-            if !changes.isEmpty, stream.stream != nil {
+            if !changes.isEmpty, stream.events != nil {
                 stream.deliver(changes)
             }
         }

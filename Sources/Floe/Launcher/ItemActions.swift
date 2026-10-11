@@ -28,7 +28,9 @@ struct ActionHost {
     /// The roles a file can be opened in, each with its app: "Open in Ghostty".
     var preferredApps: [RoleApp] = []
     /// Keeps a receipt of something that changed the Mac.
-    var record: (Receipt) -> Void = { _ in /* a host that keeps none */ }
+    var record: (Receipt) -> Void = { _ in
+        // A host that keeps none.
+    }
 }
 
 enum ActionsMenu {

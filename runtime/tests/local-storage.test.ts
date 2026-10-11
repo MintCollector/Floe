@@ -96,7 +96,7 @@ describe("LocalStorage", () => {
         const writer = path.join(import.meta.dir, "storage-writer.ts");
         const writers = ["view", "background", "menu", "extra"].map((prefix) => Bun.spawn(["bun", writer, file, prefix, "40"], { stdout: "ignore", stderr: "inherit" }));
         expect(await Promise.all(writers.map((process) => process.exited))).toEqual([0, 0, 0, 0]);
-        expect(Object.keys(onDisk()).length).toBe(160);
+        expect(Object.keys(onDisk())).toHaveLength(160);
         expect(fs.existsSync(`${file}.lock`)).toBe(false);
     }, 30000);
 

@@ -110,7 +110,7 @@ nonisolated enum ShellSuggestions {
                 .prefix(5).map { line + " " + ($0.contains(" ") ? "\"\($0)\"" : $0) }
         }
         guard program == "ssh" || program == "scp", !hosts.isEmpty else { return [] }
-        let start = typed.hasSuffix(" ") ? "" : (words.count > 1 ? words.last ?? "" : "")
+        let start = !typed.hasSuffix(" ") && words.count > 1 ? words.last ?? "" : ""
         guard typed.hasSuffix(" ") || words.count > 1, !start.hasPrefix("-") else { return [] }
         let line = String(typed.dropLast(start.count))
         return hosts.filter { $0.hasPrefix(start) && $0 != start }.prefix(5).map { line + $0 }

@@ -125,7 +125,7 @@ enum Notes {
         return nil
     }
 
-    /// Whether a query is one of the day's note's words and nothing else, with an app that keeps one. `todo` and `log` alone stay ordinary searches, so Todoist and Logseq are still found.
+    /// Whether a query is one of the day's note's words and nothing else, with an app that keeps one. The to-do word and `log` alone stay ordinary searches, so Todoist and Logseq are still found.
     static func opensDaysNote(_ query: String, app: NotesApp) -> Bool {
         let word = query.trimmingCharacters(in: .whitespaces).lowercased()
         return app.actions.contains { $0.addsToDaysNote && $0.standsAlone && $0.keyword == word }
@@ -176,7 +176,9 @@ enum Notes {
         app: NotesApp,
         template: String,
         folder: String = "",
-        record: (Receipt) -> Void = { _ in /* no receipts kept */ },
+        record: (Receipt) -> Void = { _ in
+            // No receipts kept.
+        },
         completion: @escaping (String?) -> Void
     ) {
         if app == .folder {
@@ -324,7 +326,9 @@ enum NoteFiles {
         folder path: String,
         now: Date = Date(),
         open: (URL) -> Void = { NSWorkspace.shared.open($0) },
-        record: (Receipt) -> Void = { _ in /* no receipts kept */ }
+        record: (Receipt) -> Void = { _ in
+            // No receipts kept.
+        }
     ) -> String? {
         let folder = URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
         var isFolder: ObjCBool = false

@@ -16,7 +16,7 @@ struct CalculatorSearchProvider: SearchProvider {
     }
 }
 
-/// `note buy milk` leads with the note it would make, and `todo` alone with the row that opens the day's note.
+/// `note buy milk` leads with the note it would make, and the to-do word alone with the row that opens the day's note.
 struct NoteSearchProvider: SearchProvider {
     func contribution(for context: SearchContext) -> SearchContribution {
         if let note = Notes.request(in: context.trimmed, app: context.notesApp) {

@@ -33,24 +33,10 @@ export const storagePersistence = {
         const deadline = Date.now() + 2000;
         let held = false;
         while (!held) {
-            try {
-                fs.closeSync(fs.openSync(lock, "wx"));
-                held = true;
-            } catch (error) {
-                // Anything but "it is there" is the write's to report: a folder that is missing, a disk that is full.
-                if ((error as NodeJS.ErrnoException).code !== "EEXIST") break;
-                try {
-                    if (Date.now() - fs.statSync(lock).mtimeMs > 5000) {
-                        fs.unlinkSync(lock);
-                        continue;
-                    }
-                } catch {
-                    // Released between the two calls: ask again.
-                    continue;
-                }
-                if (Date.now() >= deadline) break;
-                Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
-            }
+            const taken = take(lock);
+            held = taken === "held";
+            if (taken === "failed" || (taken === "busy" && Date.now() >= deadline)) break;
+            if (taken === "busy") Bun.sleepSync(2);
         }
         try {
             return work();
@@ -66,6 +52,24 @@ export const storagePersistence = {
         fs.renameSync(file, `${file}.unreadable-${Date.now()}`);
     },
 };
+
+/// One try at the lock file. "again" when a stale lock was cleared or the holder let go meanwhile.
+function take(lock: string): "held" | "again" | "busy" | "failed" {
+    try {
+        fs.closeSync(fs.openSync(lock, "wx"));
+        return "held";
+    } catch (error) {
+        // Anything but "it is there" is the write's to report: a folder that is missing, a disk that is full.
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") return "failed";
+    }
+    try {
+        if (Date.now() - fs.statSync(lock).mtimeMs <= 5000) return "busy";
+        fs.unlinkSync(lock);
+    } catch {
+        // Released between the two calls: ask again.
+    }
+    return "again";
+}
 
 /// Runs a write inside a promise, so one that fails rejects and a caller's catch() sees it.
 function writing(work: () => void): Promise<void> {

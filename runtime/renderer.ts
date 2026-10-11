@@ -105,7 +105,7 @@ function head(node: Child): string {
 }
 
 const sameChildren = (sent: Child[] | undefined, now: Child[]) =>
-  sent !== undefined && sent.length === now.length && now.every((child, index) => child === sent[index]);
+  sent?.length === now.length && now.every((child, index) => child === sent[index]);
 
 // The node's JSON, or nothing when the app already holds this very subtree: the parent then names it by id.
 // Compared as text, so anything that would be sent differently counts as a change, a handler's name included.
@@ -122,7 +122,8 @@ function write(node: Child, children: Child[]): string | undefined {
   if (same) return undefined;
   if ("text" in node) return own;
   if (parts.includes(undefined)) referenced = true;
-  return `${own}${parts.map((part, index) => part ?? `{"ref":${children[index].id}}`).join(",")}]}`;
+  const reference = (index: number) => `{"ref":${children[index].id}}`;
+  return `${own}${parts.map((part, index) => part ?? reference(index)).join(",")}]}`;
 }
 
 // Navigation keeps lower screens mounted so Back can restore them, but Swift only shows the last one:
