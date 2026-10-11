@@ -50,9 +50,9 @@ final class LauncherModel: ObservableObject {
     /// Every script command found in the Scripts folder.
     @Published private(set) var allScripts: [ScriptCommand] = []
     /// System Settings' panes, found once at launch: they only change with the system.
-    private var settingsPanes: [SystemSettingsPane] = []
+    private(set) var settingsPanes: [SystemSettingsPane] = []
     /// The hosts of the SSH configuration, read again each time the panel opens.
-    private var sshHosts: [SSHHost] = []
+    private(set) var sshHosts: [SSHHost] = []
     /// How a host's connection is opened. Tests replace it, so they open nothing.
     var sshConnector = SSHConnector.system
     /// The shortcuts of Apple's Shortcuts app and their runs. Nothing is read while the switch in Privacy is off.
@@ -108,6 +108,7 @@ final class LauncherModel: ObservableObject {
     /// The optional sources, and the rows they found for the ordinary search on screen.
     private let sources: [any SearchSource]
     private let sourceSearch = SourceSearch()
+    let definitionSearch = DefinitionSearch()
 
     let settings: AppSettings
     /// How the terminal and the editor are looked up. Tests replace it, so they do not read this Mac's apps;
@@ -183,7 +184,7 @@ final class LauncherModel: ObservableObject {
     /// Watches the open command's extension while it is one being developed (see HotReload.swift).
     private var sourceWatcher: DirectoryWatcher?
     @Published private(set) var apps: [AppEntry] = []
-    private var commands: [ExtensionCommand] {
+    var commands: [ExtensionCommand] {
         CommandLookup.enabled(allCommands, disabledExtensions: settings.disabledExtensions, disabledCommands: settings.disabledCommands)
     }
 
@@ -388,7 +389,7 @@ final class LauncherModel: ObservableObject {
                 Log.search.warning("Slow search: \(Log.milliseconds(since: started)) ms for \(query.count) characters, \(results.count) rows")
             }
         }
-        let context = searchContext()
+        var context = searchContext()
         // A source that is switched on also answers to its keyword, after the scopes that are always there.
         let enabled = RootSearch.enabled(sources, in: settings.searchSources)
         guard let match = RootSearch.scope(in: context, scopes: ClipboardApps.scopes(scopes, handler: settings.clipboardHandler, parked: settings.clipboardHistoryIsParked) + enabled) else {
@@ -397,13 +398,16 @@ final class LauncherModel: ObservableObject {
             selection = 0
             // The list is shown at once; a source's rows join it when they arrive.
             sourceSearch.search(context, sources: enabled) { [weak self] in self?.showSourceRows() }
-            isAwaitingResults = sourceSearch.isSearching
+            definitionSearch.search(context) { [weak self] in self?.showDefinitionRows() }
+            context.definition = definitionSearch.definition
+            isAwaitingResults = sourceSearch.isSearching || definitionSearch.isSearching
             results = RootSearch.results(for: context, sources: sourceSearch.rows)
             return
         }
         // A refresh that is not a new query, such as a rescan or a favorite, leaves a running scope alone.
         guard match.query != activeScope?.query else { return }
         sourceSearch.cancel()
+        definitionSearch.cancel()
         activeScope = match
         selection = 0
         results = match.rows(match.scope.results(for: match.text, context: context))
@@ -422,42 +426,11 @@ final class LauncherModel: ObservableObject {
     }
 
     /// A source's rows arrived below the ranked ones. The selection stays on the row it was on.
-    private func showSourceRows() {
+    func showSourceRows() {
         let selected = selectedRootItem?.id
-        isAwaitingResults = sourceSearch.isSearching
+        isAwaitingResults = sourceSearch.isSearching || definitionSearch.isSearching
         results = RootSearch.results(for: searchContext(), sources: sourceSearch.rows)
         selection = selected.flatMap { id in results.firstIndex { $0.id == id } } ?? min(selection, max(results.count - 1, 0))
-    }
-
-    /// Everything the search providers may know, read once per search.
-    private func searchContext() -> SearchContext {
-        var context = SearchContext(query: query)
-        context.favorites = settings.favorites
-        context.hidden = Set(settings.hiddenResults.keys)
-        context.emojiSkinTone = settings.emojiSkinTone
-        context.shell = settings.shell
-        context.searchSources = settings.searchSources
-        context.checkpoints = checkpoints
-        context.reminderLists = context.trimmed.lowercased().hasPrefix(ReminderDraft.keyword + " ") ? reminding.lists() : []
-        context.timers = runningTimers.all
-        context.focusShortcut = settings.focusShortcut
-        context.aliases = settings.aliases
-        context.notesApp = settings.notesApp
-        context.frecency = { [usage] in usage.frecency(of: $0) }
-        context.commands = commands
-        context.scripts = allScripts
-        context.apps = apps
-        context.thawActions = Thaw.actions()
-        context.preferredApps = preferredApps
-        context.clipboardDestination = clipboardDestination
-        context.settingsPanes = settingsPanes
-        context.sshHosts = sshHosts
-        context.shortcuts = shortcutsForSearch
-        context.snippets = SnippetStore.shared.snippets
-        context.quicklinks = QuicklinkStore.shared.links
-        context.menuBarItemNames = settings.menuBarItemNames
-        context.canAskAI = !query.isEmpty && canAskAI()
-        return context
     }
 
     func alias(for item: RootItem) -> String? {

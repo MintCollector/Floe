@@ -86,6 +86,8 @@ pair as its sender. The welcome window at first launch is still the launcher's.
 - `Sources/Floe/Search/SearchProviders`: what the root search is made of. Each provider answers a query with rows to rank,
   to pin on top, to list under a section or to append (`SearchProvider.swift`); `RootSearch.swift` lists the providers
   and merges what they answer. `LauncherModel.refresh()` only builds the context they read.
+  - Dictionary answers are read by `BuiltIn/DefinitionSearch.swift` off the main thread. It keeps only the current
+    query's answer, drops late results, and hands the entry to `DefinitionSearchProvider` through `SearchContext`.
   - A scope (`SearchScope.swift`) is a search of its own inside the root search: `files invoice`, `clipboard meeting`
     and `menu wifi` show only that scope's rows. It triggers on its keyword, a space and some text; the keyword alone
     is an ordinary search. A scope may deliver rows later through an `AsyncStream`, each batch replacing the last;

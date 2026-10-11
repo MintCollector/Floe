@@ -28,7 +28,8 @@ nonisolated struct WordDefinition: Hashable, Sendable {
 
     /// The entry of the dictionaries switched on in the Dictionary app, in their order. Nil when none has the word.
     /// Nothing leaves the Mac: the dictionaries are on disk.
-    static func entry(for word: String) -> String? {
+    @concurrent
+    static func entry(for word: String) async -> String? {
         let range = CFRange(location: 0, length: (word as NSString).length)
         return DCSCopyTextDefinition(nil, word as CFString, range)?.takeRetainedValue() as String?
     }
@@ -36,12 +37,10 @@ nonisolated struct WordDefinition: Hashable, Sendable {
 
 /// `define tide` leads with what the dictionary says.
 struct DefinitionSearchProvider: SearchProvider {
-    var entry: (String) -> String? = WordDefinition.entry
-
     func contribution(for context: SearchContext) -> SearchContribution {
-        guard let word = context.text(after: WordDefinition.keyword), let entry = entry(word) else { return SearchContribution() }
-        let definition = WordDefinition(word: word, entry: entry)
-        guard !definition.text.isEmpty else { return SearchContribution() }
+        guard let word = context.text(after: WordDefinition.keyword),
+              let definition = context.definition, definition.word == word, !definition.text.isEmpty
+        else { return SearchContribution() }
         return SearchContribution(pinned: [RootResult(item: .definition(definition), section: nil)])
     }
 }

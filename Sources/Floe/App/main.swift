@@ -334,14 +334,7 @@ if options.settings {
 }
 
 if let query = options.search {
-    // No sources: the process exits before they answer, and a tab read must not start from here.
-    let model = LauncherModel(snapshot: .scanningNow(includeRaycast: AppSettings.shared.includeRaycastExtensions), sources: [])
-    model.canAskAI = { AIAnswer.isAvailable }
-    model.query = query
-    for result in model.results.prefix(8) {
-        print("\(result.section.map { "[\($0)] " } ?? "")\(result.item.title) (\(result.item.kind))\(model.alias(for: result.item).map { " (alias \($0))" } ?? "")")
-    }
-    exit(0)
+    runSearch(query: query)
 }
 
 if options.benchSearch {

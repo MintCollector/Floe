@@ -12,6 +12,8 @@ struct SearchContext {
     /// The query as typed. Ranking and the calculator read it untrimmed.
     let query: String
     let trimmed: String
+    /// The dictionary entry already read off the main thread for this query, if any.
+    var definition: WordDefinition?
     var favorites: [String] = []
     /// Results the user took out of the search, by `RootItem.id`.
     var hidden: Set<String> = []
