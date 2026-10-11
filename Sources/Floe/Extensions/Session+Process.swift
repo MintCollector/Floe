@@ -140,22 +140,6 @@ extension ExtensionSession {
         failure = SessionFailure(kind: hadStarted ? .crashed : .error, message: message, details: error.localizedDescription)
     }
 
-    /// One extension must not take the Mac's memory: a host holding more than this is stopped.
-    static let memoryCeiling: UInt64 = 1 << 30
-
-    /// Part of a watchdog tick. True when the host was over the ceiling and has been stopped.
-    func stopsOverCeiling(holding memory: UInt64) -> Bool {
-        guard memory > Self.memoryCeiling, failure == nil else { return false }
-        failure = SessionFailure(
-            kind: .crashed,
-            message: String(localized: "The extension used too much memory and was stopped.", bundle: .floe),
-            details: String(localized: "It held \(String(memory / 1_048_576)) MB.", bundle: .floe, comment: "The placeholder is a number of megabytes.")
-        )
-        onMessage(["type": "crashed"])
-        forceStop()
-        return true
-    }
-
     /// Stops the process, optionally after a grace period so trailing messages still arrive.
     func stop(after delay: TimeInterval = 0) {
         isStopping = true

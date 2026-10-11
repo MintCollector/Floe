@@ -345,8 +345,31 @@ struct ExtensionSessionTests {
         #expect(session.stopsOverCeiling(holding: ExtensionSession.memoryCeiling + 5 * 1_048_576))
         #expect(session.failure?.kind == .crashed)
         #expect(session.failure?.message == "The extension used too much memory and was stopped.")
-        #expect(session.failure?.details == "It held 1029 MB.")
+        #expect(session.failure?.details == "It held 1,029 MB.")
         #expect(session.isStopping)
+    }
+
+    @Test func anUnresponsiveHostStillHasAMemoryCeiling() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        session.heartbeat(now: start)
+        session.heartbeat(now: start.addingTimeInterval(9))
+        #expect(session.failure?.kind == .unresponsive)
+        #expect(session.stopsOverCeiling(holding: ExtensionSession.memoryCeiling + 1))
+        #expect(session.isStopping)
+        #expect(session.failure?.kind == .crashed)
+    }
+
+    @Test func anErroredHostIsStoppedOnlyOnceWhenItExceedsTheCeiling() {
+        session.failure = SessionFailure(kind: .error, message: "Failed", details: "")
+        var crashes = 0
+        session.onMessage = {
+            if $0["type"] as? String == "crashed" {
+                crashes += 1
+            }
+        }
+        #expect(session.stopsOverCeiling(holding: ExtensionSession.memoryCeiling + 1))
+        #expect(session.stopsOverCeiling(holding: ExtensionSession.memoryCeiling + 1) == false)
+        #expect(crashes == 1)
     }
 
     @Test func aPongClearsTheWaitAndAnUnresponsiveFailure() {

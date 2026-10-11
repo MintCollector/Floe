@@ -1504,7 +1504,7 @@
         }
       }
     },
-    "It held %@ MB." : {
+    "It held %llu MB." : {
       "comment" : "The placeholder is a number of megabytes."
     },
     "It replaced an older checkpoint of the same name. Deleting this one does not bring the older one back." : {},
