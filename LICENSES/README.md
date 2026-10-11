@@ -6,7 +6,7 @@ Parts of it come from other projects and keep their own terms. This folder holds
 | What | Where in the tree | License | Text |
 | --- | --- | --- | --- |
 | Floe's own code | `Sources/Floe`, `runtime`, `scripts` | AGPL-3.0 | [`LICENSE`](../LICENSE) |
-| Code ported from Thaw | `Sources/Floe/Thaw`, `Vendor/ThawUI`, `Vendor/ThawConcurrency` | GPL-3.0 | [`Thaw-GPL-3.0`](Thaw-GPL-3.0) |
+| Code ported from Thaw | `Sources/Floe/Thaw`, `Vendor/ThawUI` | GPL-3.0 | [`Thaw-GPL-3.0`](Thaw-GPL-3.0) |
 | Code ported from Droppy Code | `Sources/Floe/DroppyCode` | AGPL-3.0 with attribution terms | [`DroppyCode-LICENSE`](DroppyCode-LICENSE), [`DroppyCode-THIRD_PARTY_NOTICES.md`](DroppyCode-THIRD_PARTY_NOTICES.md) |
 | Sample extensions | `extensions` | Each extension's own | In each extension's folder |
 | Test cases copied from fend | `Tests/FloeTests/Fixtures/FendIntegrationCorpus.swift` | MIT | [`fend-MIT`](fend-MIT) |

@@ -55,7 +55,7 @@ APACHE_2 = "Apache-2.0"
 
 DEPENDENCIES = [
     Dependency("Thaw", "thaw", "GPL-3.0",
-               "ThawUI, ThawConcurrency, the hotkey code, the HUD, the glass styles, the Privacy pane, the About and "
+               "ThawUI, the hotkey code, the HUD, the glass styles, the Privacy pane, the About and "
                "acknowledgements pages, the diagnostic logger, the release notes reader and the search panel design. "
                "Copyright © 2026 Toni Förster et al", group="origin"),
     # The license asks for this exact credit line wherever Floe lists what it is built from.

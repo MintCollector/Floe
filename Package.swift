@@ -16,7 +16,6 @@ let package = Package(
     platforms: [.macOS(.v26)],
     dependencies: [
         .package(path: "Vendor/ThawUI"),
-        .package(path: "Vendor/ThawConcurrency"),
         // Keep in step with project.yml.
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
         .package(url: "https://github.com/swiftlang/swift-subprocess", exact: "1.0.0"),
@@ -33,7 +32,6 @@ let package = Package(
             name: "Floe",
             dependencies: [
                 "ThawUI",
-                "ThawConcurrency",
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "Markdown", package: "swift-markdown"),

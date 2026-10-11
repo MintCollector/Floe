@@ -135,7 +135,6 @@ pair as its sender. The welcome window at first launch is still the launcher's.
     extensions with a `src/` folder are watched, never the ones Raycast installed.
 - `CREDITS.md` and `Sources/Floe/App/Credits.swift` are written by `scripts/generate-credits.py`; run it after changing a dependency.
 - `Vendor/ThawUI`: design system copied from thaw-app/Thaw (commit in `Vendor/ThawUI/UPSTREAM`).
-- `Vendor/ThawConcurrency`: Thaw's timeout and one-shot continuation helpers, copied the same way.
 
 ## License
 

@@ -10,8 +10,6 @@ options:
 packages:
   ThawUI:
     path: Vendor/ThawUI
-  ThawConcurrency:
-    path: Vendor/ThawConcurrency
   # Keep in step with Package.swift and with sparkle-version in .github/workflows/release.yml.
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
@@ -70,7 +68,6 @@ targets:
         buildPhase: none
     dependencies:
       - package: ThawUI
-      - package: ThawConcurrency
       - package: Sparkle
       - package: swift-subprocess
         product: Subprocess
