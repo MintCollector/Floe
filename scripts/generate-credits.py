@@ -86,7 +86,6 @@ DEPENDENCIES = [
                "swift", "swift-collections"),
     Dependency("fend", "fend", "MIT", "Calculates and converts units in the search", "cargo", "fend-core"),
     Dependency("nucleo", "nucleo", "MPL-2.0", "Matches file names in the fast file search", "cargo", "nucleo-matcher"),
-    Dependency("ignore", "ignore", "MIT", "Walks the home folder for the fast file search", "cargo", "ignore"),
     Dependency("Rayon", "rayon", "MIT", "Matches file names on several cores at once", "cargo", "rayon"),
     Dependency("Bun", "bun", "MIT", "Runs extensions"),
     Dependency("React", "react", "MIT", "Renders extensions", "runtime", "react"),

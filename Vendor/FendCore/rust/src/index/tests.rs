@@ -195,6 +195,36 @@ fn a_rescan_sees_a_file_added_removed_and_renamed() {
 }
 
 #[test]
+fn a_walking_thread_keeps_a_folders_path_once_for_all_the_names_in_it() {
+    let mut found = Found::default();
+    found.add("", "docs", true);
+    found.add("docs/deep", "one.txt", false);
+    found.add("docs/deep", "two.txt", false);
+    found.add("docs", "other.txt", false);
+
+    let folders: Vec<(&str, u32)> = found.folders.iter().map(|listing| (found.folder(listing), listing.count)).collect();
+    assert_eq!(folders, [("", 1), ("docs/deep", 2), ("docs", 1)]);
+    let names: Vec<&str> = found.names.iter().map(|name| found.text(name.0, usize::from(name.1))).collect();
+    assert_eq!(names, ["docs", "one.txt", "two.txt", "other.txt"]);
+    assert_eq!(found.bytes.len(), "docs".len() + "docs/deep".len() + "one.txt".len() + "two.txt".len() + "docs".len() + "other.txt".len());
+}
+
+#[test]
+fn a_full_tree_grows_by_a_little_when_one_more_name_arrives() {
+    let mut tree = Tree::empty("/root");
+    for number in 0..4000 {
+        tree.push(0, &format!("file-{number}.txt"), false);
+    }
+    tree.entries.shrink_to_fit();
+    tree.names.shrink_to_fit();
+    let (entries, names) = (tree.entries.capacity(), tree.names.capacity());
+
+    tree.push(0, "one-more.txt", false);
+    assert!(tree.entries.capacity() <= entries + entries / 8);
+    assert!(tree.names.capacity() <= names + names / 8);
+}
+
+#[test]
 fn a_rescan_sees_a_folder_removed_renamed_and_moved_in() {
     let scratch = Scratch::new();
     scratch.file("work/old/a/one.txt");

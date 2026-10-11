@@ -22,9 +22,7 @@ struct Credit: Identifiable {
     let link: String
     let group: Group
 
-    var id: String {
-        name
-    }
+    var id: String { name }
 }
 
 enum Credits {
@@ -44,7 +42,6 @@ enum Credits {
         Credit(name: "swift-collections", detail: "Used by swift-async-algorithms. Apache-2.0.", link: "swiftCollections", group: .library),
         Credit(name: "fend", detail: "Calculates and converts units in the search. MIT.", link: "fend", group: .library),
         Credit(name: "nucleo", detail: "Matches file names in the fast file search. MPL-2.0.", link: "nucleo", group: .library),
-        Credit(name: "ignore", detail: "Walks the home folder for the fast file search. MIT.", link: "ignore", group: .library),
         Credit(name: "Rayon", detail: "Matches file names on several cores at once. MIT.", link: "rayon", group: .library),
         Credit(name: "Bun", detail: "Runs extensions. MIT.", link: "bun", group: .library),
         Credit(name: "React", detail: "Renders extensions. MIT.", link: "react", group: .library),

@@ -1,15 +1,14 @@
 //! The names of the files under one folder, held in memory and matched fuzzily.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{CStr, OsStr};
 use std::os::raw::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::path::Path;
 use std::ptr;
 use std::slice;
-use std::sync::{Mutex, RwLock};
+use std::sync::{Condvar, Mutex, RwLock};
 
-use ignore::{DirEntry, ParallelVisitor, ParallelVisitorBuilder, WalkBuilder, WalkState};
 use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use rayon::prelude::*;
@@ -73,64 +72,112 @@ struct Tree {
     dead: usize,
 }
 
-/// What one walking thread found: paths relative to the root, in one buffer.
+/// What one walking thread found, folder by folder: a folder's path once, then the names in it.
 #[derive(Default)]
 struct Found {
     bytes: Vec<u8>,
-    items: Vec<(u32, u32, bool)>,
+    folders: Vec<Listing>,
+    /// Where a name starts in `bytes`, how long it is, and whether it is a folder.
+    names: Vec<(u32, u16, bool)>,
 }
 
-struct Collector<'a> {
-    root: &'a Path,
-    rules: &'a Rules,
-    found: Found,
-    all: &'a Mutex<Vec<Found>>,
-    lowered: bool,
+/// One folder a thread read: its path relative to the root, and the stretch of `names` that came from it.
+struct Listing {
+    start: u32,
+    len: u32,
+    first: u32,
+    count: u32,
 }
 
-impl ParallelVisitor for Collector<'_> {
-    fn visit(&mut self, entry: Result<DirEntry, ignore::Error>) -> WalkState {
-        if !self.lowered {
-            lower_priority();
-            self.lowered = true;
-        }
-        let Ok(entry) = entry else { return WalkState::Continue };
-        if entry.depth() == 0 {
-            return WalkState::Continue;
-        }
-        let is_dir = entry.file_type().is_some_and(|kind| kind.is_dir());
-        let kind = self.rules.classify(entry.file_name(), is_dir);
-        if kind == Kind::Skip {
-            return WalkState::Skip;
-        }
-        let relative = entry.path().strip_prefix(self.root).ok().and_then(Path::to_str);
-        let Some(relative) = relative else { return WalkState::Skip };
-        let (Ok(start), Ok(len)) = (u32::try_from(self.found.bytes.len()), u32::try_from(relative.len())) else {
-            return WalkState::Skip;
+impl Found {
+    fn text(&self, start: u32, len: usize) -> &str {
+        let start = start as usize;
+        // Only whole strings are ever written to the buffer.
+        std::str::from_utf8(&self.bytes[start..start + len]).unwrap_or("")
+    }
+
+    fn folder(&self, listing: &Listing) -> &str {
+        self.text(listing.start, listing.len as usize)
+    }
+
+    /// Adds a name under its folder. A walking thread reads a folder's entries one after another.
+    fn add(&mut self, folder: &str, name: &str, is_dir: bool) {
+        let (Ok(start), Ok(len), Ok(first)) = (u32::try_from(self.bytes.len() + folder.len()), u16::try_from(name.len()), u32::try_from(self.names.len()))
+        else {
+            return;
         };
-        self.found.bytes.extend_from_slice(relative.as_bytes());
-        self.found.items.push((start, len, is_dir));
-        if kind == Kind::Folder { WalkState::Continue } else { WalkState::Skip }
+        if !self.folders.last().is_some_and(|last| self.folder(last) == folder) {
+            let listing = Listing { start: start - folder.len() as u32, len: folder.len() as u32, first, count: 0 };
+            self.bytes.extend_from_slice(folder.as_bytes());
+            self.folders.push(listing);
+        }
+        let start = self.bytes.len() as u32;
+        self.bytes.extend_from_slice(name.as_bytes());
+        self.names.push((start, len, is_dir));
+        if let Some(last) = self.folders.last_mut() {
+            last.count += 1;
+        }
     }
 }
 
-impl Drop for Collector<'_> {
-    fn drop(&mut self) {
-        let found = std::mem::take(&mut self.found);
-        self.all.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(found);
+/// The folders still to read, as paths under the root, and how many threads are reading one now.
+/// A thread that finds none left and nobody reading knows the walk is over.
+struct Pending {
+    state: Mutex<(Vec<String>, usize)>,
+    changed: Condvar,
+}
+
+impl Pending {
+    fn take(&self) -> Option<String> {
+        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        loop {
+            if let Some(folder) = state.0.pop() {
+                state.1 += 1;
+                return Some(folder);
+            }
+            if state.1 == 0 {
+                return None;
+            }
+            state = self.changed.wait(state).unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+    }
+
+    /// The thread is done with its folder, and hands over the folders it found in it.
+    fn finish(&self, inside: &mut Vec<String>) {
+        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.0.append(inside);
+        state.1 -= 1;
+        self.changed.notify_all();
     }
 }
 
-struct Collectors<'a> {
-    root: &'a Path,
-    rules: &'a Rules,
-    all: &'a Mutex<Vec<Found>>,
-}
-
-impl<'s> ParallelVisitorBuilder<'s> for Collectors<'s> {
-    fn build(&mut self) -> Box<dyn ParallelVisitor + 's> {
-        Box::new(Collector { root: self.root, rules: self.rules, found: Found::default(), all: self.all, lowered: false })
+/// One walking thread: reads folders until none are left. Symlinks are listed and never followed,
+/// and a folder that cannot be read is listed with nothing in it.
+fn collect(root: &str, rules: &Rules, pending: &Pending) -> Found {
+    lower_priority();
+    let mut found = Found::default();
+    let mut inside = Vec::new();
+    let mut path = String::new();
+    while let Some(folder) = pending.take() {
+        path.clear();
+        path.push_str(root);
+        if !folder.is_empty() {
+            path.push('/');
+            path.push_str(&folder);
+        }
+        for entry in std::fs::read_dir(&path).into_iter().flatten().flatten() {
+            let is_dir = entry.file_type().is_ok_and(|kind| kind.is_dir());
+            let name = entry.file_name();
+            let kind = rules.classify(&name, is_dir);
+            let (Some(name), true) = (name.to_str(), kind != Kind::Skip) else { continue };
+            found.add(&folder, name, is_dir);
+            if kind == Kind::Folder {
+                inside.push(if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") });
+            }
+        }
+        pending.finish(&mut inside);
     }
+    found
 }
 
 /// The walk is background work: its threads step aside for whatever the user is doing.
@@ -155,39 +202,34 @@ impl Tree {
 
     /// Everything under `root` that the rules keep. A root that is missing or unreadable gives an empty tree.
     fn walk(root: &str, rules: &Rules, threads: usize) -> Self {
-        let all = Mutex::new(Vec::new());
-        let path = Path::new(root);
-        WalkBuilder::new(path)
-            .standard_filters(false)
-            .follow_links(false)
-            .threads(threads)
-            .build_parallel()
-            .visit(&mut Collectors { root: path, rules, all: &all });
-        let found = all.into_inner().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let mut items: Vec<(&str, bool)> = found
-            .iter()
-            .flat_map(|chunk| {
-                chunk.items.iter().filter_map(|&(start, len, is_dir)| {
-                    let bytes = chunk.bytes.get(start as usize..(start + len) as usize)?;
-                    Some((std::str::from_utf8(bytes).ok()?, is_dir))
-                })
-            })
-            .collect();
-        // Folder by folder, so each folder comes right before what is in it.
-        items.par_sort_unstable_by(|a, b| a.0.split('/').cmp(b.0.split('/')));
+        // The root is the one folder to read at first: the empty path under itself.
+        let pending = Pending { state: Mutex::new((vec![String::new()], 0)), changed: Condvar::new() };
+        let found: Vec<Found> = std::thread::scope(|scope| {
+            let walkers: Vec<_> = (0..threads.max(1)).map(|_| scope.spawn(|| collect(root, rules, &pending))).collect();
+            walkers.into_iter().filter_map(|walker| walker.join().ok()).collect()
+        });
+        let mut listings: Vec<(&Found, &Listing)> = found.iter().flat_map(|chunk| chunk.folders.iter().map(move |listing| (chunk, listing))).collect();
+        // Folder by folder, so each folder is in the tree before what is in it.
+        listings.par_sort_unstable_by(|a, b| a.0.folder(a.1).split('/').cmp(b.0.folder(b.1).split('/')));
 
         let mut tree = Self::empty(root);
-        tree.entries.reserve_exact(items.len());
-        let mut open: Vec<u32> = vec![0];
-        for (relative, is_dir) in items {
-            let depth = relative.bytes().filter(|byte| *byte == b'/').count() + 1;
-            open.truncate(depth);
+        let names = || found.iter().flat_map(|chunk| chunk.names.iter());
+        tree.entries.reserve_exact(names().count());
+        tree.names.reserve_exact(names().map(|name| usize::from(name.1)).sum());
+        let mut folders: HashMap<(u32, &str), u32> = HashMap::new();
+        for (chunk, listing) in listings {
             // A folder that vanished while it was read leaves entries with nowhere to go.
-            let (Some(&parent), true) = (open.last(), open.len() == depth) else { continue };
-            let name = relative.rsplit('/').next().unwrap_or(relative);
-            let id = tree.push(parent, name, is_dir);
-            if is_dir {
-                open.push(id);
+            let mut path = chunk.folder(listing).split('/').filter(|part| !part.is_empty());
+            let Some(parent) = path.try_fold(0, |folder, part| folders.get(&(folder, part)).copied()) else { continue };
+            let mut inside: Vec<_> = chunk.names[listing.first as usize..(listing.first + listing.count) as usize].iter().collect();
+            inside.sort_unstable_by_key(|name| chunk.text(name.0, usize::from(name.1)));
+            tree.children.entry(parent).or_default().reserve_exact(inside.len());
+            for &&(start, len, is_dir) in &inside {
+                let name = chunk.text(start, usize::from(len));
+                let id = tree.push(parent, name, is_dir);
+                if is_dir {
+                    folders.insert((parent, name), id);
+                }
             }
         }
         tree.names.shrink_to_fit();
@@ -216,6 +258,8 @@ impl Tree {
     fn push(&mut self, parent: u32, name: &str, is_dir: bool) -> u32 {
         let id = self.entries.len() as u32;
         let depth = self.entries[parent as usize].depth.saturating_add(1);
+        make_room(&mut self.entries, 1);
+        make_room(&mut self.names, name.len());
         self.entries.push(Entry {
             parent,
             name_start: self.names.len() as u32,
@@ -251,6 +295,8 @@ impl Tree {
         let first = self.entries.len() as u32;
         let moved = |id: u32| if id == 0 { top } else { first + id - 1 };
         let names_start = self.names.len() as u32;
+        make_room(&mut self.entries, other.entries.len());
+        make_room(&mut self.names, other.names.len());
         self.names.extend_from_slice(&other.names);
         self.entries.extend(other.entries.iter().skip(1).map(|entry| Entry {
             parent: moved(entry.parent),
@@ -269,6 +315,8 @@ impl Tree {
             return;
         }
         let mut fresh = Self::empty(&self.root);
+        fresh.entries.reserve_exact(self.count());
+        fresh.names.reserve_exact(self.names.len());
         let mut moved = vec![0u32; self.entries.len()];
         // A folder always comes before what is in it, so its new place is known by then.
         for (id, entry) in self.entries.iter().enumerate().skip(1) {
@@ -276,6 +324,7 @@ impl Tree {
                 moved[id] = fresh.push(moved[entry.parent as usize], self.name(entry), entry.flags & DIR != 0);
             }
         }
+        fresh.names.shrink_to_fit();
         *self = fresh;
     }
 
@@ -307,8 +356,6 @@ impl Tree {
             return Vec::new();
         }
         let by_path = query.contains('/');
-        let mut config = Config::DEFAULT.match_paths();
-        config.prefer_prefix = true;
         let pattern = Pattern::new(query, CaseMatching::Smart, Normalization::Smart, AtomKind::Fuzzy);
 
         let mut found: Vec<(u32, u32)> = self
@@ -316,23 +363,20 @@ impl Tree {
             .par_iter()
             .enumerate()
             .with_min_len(4096)
-            .map_init(
-                || (Matcher::new(config.clone()), Vec::new(), String::new()),
-                |(matcher, buffer, path), (id, entry)| {
-                    if id == 0 || entry.flags & DEAD != 0 {
-                        return None;
-                    }
+            .filter_map(|(id, entry)| {
+                if id == 0 || entry.flags & DEAD != 0 {
+                    return None;
+                }
+                MATCHING.with_borrow_mut(|(matcher, buffer, path)| {
                     let text = if by_path {
                         self.relative_path(id as u32, path);
                         path.as_str()
                     } else {
                         self.name(entry)
                     };
-                    let score = pattern.score(Utf32Str::new(text, buffer), matcher)?;
-                    Some((score, id as u32))
-                },
-            )
-            .flatten()
+                    Some((pattern.score(Utf32Str::new(text, buffer), matcher)?, id as u32))
+                })
+            })
             .collect();
 
         // Best score first; among equals the one nearer the root, then the shorter name.
@@ -346,35 +390,36 @@ impl Tree {
         }
         found.sort_unstable_by_key(rank);
 
-        let mut matcher = Matcher::new(config);
-        let (mut buffer, mut prefix_buffer, mut positions) = (Vec::new(), Vec::new(), Vec::new());
-        let mut relative = String::new();
-        found
-            .into_iter()
-            .map(|(score, id)| {
-                let entry = &self.entries[id as usize];
-                let name = self.name(entry);
-                self.relative_path(id, &mut relative);
-                positions.clear();
-                if by_path {
-                    // The positions are in the path; the ones before the name are dropped.
-                    let before = Utf32Str::new(&relative[..relative.len() - name.len()], &mut prefix_buffer).len() as u32;
-                    pattern.indices(Utf32Str::new(&relative, &mut buffer), &mut matcher, &mut positions);
-                    positions.retain(|position| *position >= before);
-                    positions.iter_mut().for_each(|position| *position -= before);
-                } else {
-                    pattern.indices(Utf32Str::new(name, &mut buffer), &mut matcher, &mut positions);
-                }
-                positions.sort_unstable();
-                positions.dedup();
-                Hit {
-                    path: format!("{}/{}", self.root, relative),
-                    is_folder: entry.flags & DIR != 0,
-                    score,
-                    positions: positions.clone(),
-                }
-            })
-            .collect()
+        let (mut prefix_buffer, mut positions) = (Vec::new(), Vec::new());
+        let shown = |(matcher, buffer, relative): &mut (Matcher, Vec<char>, String)| -> Vec<Hit> {
+            found
+                .into_iter()
+                .map(|(score, id)| {
+                    let entry = &self.entries[id as usize];
+                    let name = self.name(entry);
+                    self.relative_path(id, relative);
+                    positions.clear();
+                    if by_path {
+                        // The positions are in the path; the ones before the name are dropped.
+                        let before = Utf32Str::new(&relative[..relative.len() - name.len()], &mut prefix_buffer).len() as u32;
+                        pattern.indices(Utf32Str::new(relative, buffer), matcher, &mut positions);
+                        positions.retain(|position| *position >= before);
+                        positions.iter_mut().for_each(|position| *position -= before);
+                    } else {
+                        pattern.indices(Utf32Str::new(name, buffer), matcher, &mut positions);
+                    }
+                    positions.sort_unstable();
+                    positions.dedup();
+                    Hit {
+                        path: format!("{}/{}", self.root, relative),
+                        is_folder: entry.flags & DIR != 0,
+                        score,
+                        positions: positions.clone(),
+                    }
+                })
+                .collect()
+        };
+        MATCHING.with_borrow_mut(shown)
     }
 }
 
@@ -403,6 +448,24 @@ pub struct FileIndex {
     state: RwLock<State>,
     /// Held by whichever build or rescan is changing the tree, so the entries one of them looked up stay where they were.
     writer: Mutex<()>,
+}
+
+/// Grows a full list by a sixteenth. Left to itself it would double, and these lists are megabytes each.
+fn make_room<T>(list: &mut Vec<T>, more: usize) {
+    if list.capacity() - list.len() < more {
+        list.reserve_exact(more.max(list.len() / 16));
+    }
+}
+
+thread_local! {
+    /// A thread's matcher and the buffers it fills, kept from one search to the next: a matcher is 135 KB to make.
+    static MATCHING: RefCell<(Matcher, Vec<char>, String)> = RefCell::new((Matcher::new(matching()), Vec::new(), String::new()));
+}
+
+fn matching() -> Config {
+    let mut config = Config::DEFAULT.match_paths();
+    config.prefer_prefix = true;
+    config
 }
 
 fn walk_threads() -> usize {
