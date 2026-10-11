@@ -11,7 +11,8 @@
 //  Ported to Floe from Droppy Code's Core/Support/Shell.swift, and modified: the login shell
 //  environment moved to LoginEnvironment.swift, the check for shell commands that write files
 //  is left out, because Floe runs no agent's commands, and `run` can hand standard output on
-//  as it is read, for a tool that streams its answer.
+//  as it is read, for a tool that streams its answer. Input written to a program that has already
+//  ended fails quietly, where it used to end the app with a broken pipe.
 
 import Foundation
 import Synchronization
@@ -131,6 +132,8 @@ nonisolated enum Shell {
                 }
                 if let input, let stdin {
                     DispatchQueue.global(qos: .userInitiated).async {
+                        // A program that ends without reading its input must not end Floe with it: the write fails instead.
+                        _ = fcntl(stdin.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
                         try? stdin.fileHandleForWriting.write(contentsOf: input)
                         try? stdin.fileHandleForWriting.close()
                     }

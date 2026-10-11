@@ -30,6 +30,12 @@ struct ShellTests {
         #expect(result.trimmedOutput == "typed")
     }
 
+    @Test func aProgramThatEndsWithoutReadingItsInputDoesNotEndTheCaller() async throws {
+        // More than a pipe holds, so the write is still under way when the program is gone.
+        let result = try await Shell.run(tool("/usr/bin/true"), [], environment: [:], input: Data(count: 1 << 20))
+        #expect(result.succeeded)
+    }
+
     @Test func runsInTheDirectoryAndEnvironmentItIsGiven() async throws {
         let directory = URL(fileURLWithPath: "/usr/bin")
         let result = try await Shell.run(tool("/bin/sh"), ["-c", "pwd -P; printf %s \"$GREETING\""], in: directory, environment: ["GREETING": "hello"])
