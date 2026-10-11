@@ -45,7 +45,10 @@ final nonisolated class DirectoryWatcher: Sendable {
     /// Events name the real path, /var as /private/var. Foundation's symlink resolution
     /// strips /private again, so this is realpath(3).
     static func real(_ path: String) -> String {
-        path.withCString { path in realpath(path, nil).map { String(cString: $0) } } ?? path
+        // realpath allocates what it answers with, and that is the caller's to free.
+        guard let resolved = realpath(path, nil) else { return path }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
 
     /// A path as events name it, relative to the root; nil for the root itself and anything outside it.
