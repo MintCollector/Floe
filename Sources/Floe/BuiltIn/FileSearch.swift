@@ -27,6 +27,8 @@ final class FileSearch: ObservableObject {
     @Published private(set) var isSearching = false
 
     private var metadataQuery: NSMetadataQuery?
+    /// Opens a found file. Tests pass their own: macOS shows an alert for a file that is not there.
+    var opener: (URL) -> Void = { NSWorkspace.shared.openWithoutWaiting($0) }
     /// Queries wait here until typing pauses. Each carries the round it was typed in, so one that
     /// settles after `cancel()` is dropped.
     private let queries = AsyncStream.makeStream(of: (round: Int, text: String).self, bufferingPolicy: .bufferingNewest(1))
@@ -94,7 +96,7 @@ final class FileSearch: ObservableObject {
     }
 
     func open(_ file: FileResult) {
-        NSWorkspace.shared.openWithoutWaiting(file.url)
+        opener(file.url)
     }
 
     func reveal(_ file: FileResult) {

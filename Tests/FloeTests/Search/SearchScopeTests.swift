@@ -59,7 +59,6 @@ private final nonisolated class ScanCount: @unchecked Sendable {
 }
 
 private func file(_ name: String) -> FileResult {
-    // No such folder, so opening one in a test opens nothing.
     FileResult(url: URL(fileURLWithPath: "/floe-tests-no-such-folder/\(name)"), name: name, displayPath: "/floe-tests-no-such-folder", contentType: nil, lastUsed: nil)
 }
 
@@ -369,10 +368,13 @@ struct SearchScopeTests {
     @Test func openingAFileRowClosesThePanelAndGoesBackToTheRoot() {
         let model = makeModel(scopes: [files])
         var hidden = 0
+        var opened: [String] = []
         model.hidePanel = { hidden += 1 }
+        model.fileSearch.spotlight.opener = { opened.append($0.lastPathComponent) }
         files.immediate = [.file(file("invoice.pdf"))]
         model.query = "files invoice"
         model.activate(model.results[0].item)
+        #expect(opened == ["invoice.pdf"])
         #expect(hidden == 1)
         #expect(model.query.isEmpty)
         #expect(model.activeScope == nil)
