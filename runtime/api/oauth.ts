@@ -6,8 +6,8 @@
 //  Licensed under the GNU AGPLv3
 
 // Raycast OAuth PKCE client. The browser flow and token storage run in the Swift app over the bridge.
-// Parked until the app sets FLOE_OAUTH: a client still constructs, and only starting a sign-in fails.
-import { ctx, request } from "../bridge";
+// Off unless the app sets FLOE_OAUTH: a client still constructs, and only starting a sign-in fails.
+import { ctx, request, send } from "../bridge";
 
 const signInIsOn = () => process.env.FLOE_OAUTH === "1";
 
@@ -47,14 +47,25 @@ function signInUnavailable(provider?: string) {
     const token = preference ? ` Or add "${preference.title ?? preference.name}" in this extension's preferences.` : "";
     return new Error(`Floe signs in to ${lent.service} with the ${lent.tool}. Install it, run "${lent.login}", and allow it when Floe asks.${token}`);
   }
+  // The app asks for the token in a form and runs the command again; the error is for a command with no form to show.
+  if (preference) send({ type: "signIn", preference: preference.name, provider });
   return new Error(`Floe can't sign in${service} yet. ${instead}`);
 }
 
 export const RedirectMethod = { Web: "web", App: "app", AppURI: "appURI" } as const;
 
-function redirectURI(): string {
-  // Floe cannot receive Raycast raycast.com or raycast:// redirects, so every method uses the app scheme.
-  return `floe://oauth?package_name=${ctx.manifest.name}`;
+// Temporary: providers only allow Raycast's redirect addresses, so the browser returns through raycast.com.
+const raycastRedirect = "https://raycast.com/redirect?packageName=Extension";
+
+// Raycast's redirect page opens the scheme its state names, which is how the result reaches floe://oauth.
+function stateForFloe(provider?: string): string {
+  const state = JSON.stringify({ scheme: "floe", id: randomString(32), providerName: provider });
+  return base64url(new TextEncoder().encode(state));
+}
+
+// The raycast:// and com.raycast:/ redirects go straight to Raycast, so only the web one can be received.
+function isReceivable(method?: string): boolean {
+  return method === undefined || method === RedirectMethod.Web;
 }
 
 const unreserved = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -214,10 +225,11 @@ export class PKCEClient {
   }
 
   async authorizationRequest(options: AuthorizationRequestOptions): Promise<AuthorizationRequest> {
-    if (!signInIsOn()) throw signInUnavailable(this.options.providerName);
+    if (!signInIsOn() || !isReceivable(this.options.redirectMethod)) throw signInUnavailable(this.options.providerName);
     const codeVerifier = randomString(64);
     const codeChallenge = await s256Challenge(codeVerifier);
-    return new AuthorizationRequest({ ...options, codeVerifier, codeChallenge, state: randomString(32), redirectURI: redirectURI() });
+    const state = stateForFloe(this.options.providerName);
+    return new AuthorizationRequest({ ...options, codeVerifier, codeChallenge, state, redirectURI: raycastRedirect });
   }
 
   async authorize(requestOrOptions: AuthorizationRequest | { url: string }): Promise<{ authorizationCode: string }> {

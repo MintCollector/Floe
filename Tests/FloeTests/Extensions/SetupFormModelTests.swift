@@ -79,4 +79,54 @@ struct SetupFormModelTests {
         #expect(launcher.setup == nil)
         #expect(launcher.session == nil, "the command did not run")
     }
+
+    private func notion(_ fields: [FieldSpec]) -> ExtensionCommand {
+        ExtensionCommand(
+            extensionDir: URL(fileURLWithPath: "/tmp/floe-setup-form-tests"), extensionName: "floe-setup-form-tests",
+            extensionTitle: "Notion", source: .local, name: "search", title: "Search Notion",
+            mode: "view", interval: nil, icon: nil, arguments: [], extensionPreferences: fields, commandPreferences: []
+        )
+    }
+
+    @Test func aFormThatStandsInForASignInNeedsItsFieldThoughTheExtensionDoesNot() {
+        let token = Fixture.field("token", type: "password")
+        let ordinary = SetupRequest(command: notion([token]), kind: .preferences, fields: [token])
+        #expect(ordinary.missing(in: ["token": ""]).isEmpty)
+        let signIn = SetupRequest(command: notion([token]), kind: .preferences, fields: [token], provider: "Notion")
+        #expect(signIn.missing(in: ["token": ""]).map(\.name) == ["token"])
+        #expect(signIn.missing(in: ["token": "secret_abc"]).isEmpty)
+    }
+
+    @Test func savingAFormTouchesOnlyTheFieldsItAskedFor() {
+        let declared = [Fixture.field("token", type: "password"), Fixture.field("open_in"), Fixture.field("other", type: "password")]
+        let request = SetupRequest(command: notion(declared), kind: .preferences, fields: [declared[0]], provider: "Notion")
+        #expect(request.asked(of: declared).map(\.name) == ["token"])
+        #expect(request.asked(of: [declared[1]]).isEmpty)
+        let whole = SetupRequest(command: notion(declared), kind: .preferences, fields: declared)
+        #expect(whole.asked(of: declared).map(\.name) == ["token", "open_in", "other"])
+    }
+
+    @Test func aCommandThatAsksToSignInGetsAFormForItsTokenAndIsEnded() throws {
+        let settings = try AppSettings(defaults: #require(UserDefaults(suiteName: "floe-setup-form-tests-\(UUID().uuidString)")))
+        let search = notion([Fixture.field("token", type: "password"), Fixture.field("open_in")])
+        let launcher = LauncherModel(settings: settings, snapshot: CatalogSnapshot(apps: [], commands: [search]), scopes: [], sources: [])
+        let session = ExtensionSession(command: search, arguments: ["query": "notes"])
+
+        launcher.handle(["type": "signIn", "preference": "nothing-by-this-name", "provider": "Notion"], from: session)
+        #expect(launcher.setup == nil, "a preference the command does not declare asks for nothing")
+
+        launcher.handle(["type": "signIn", "preference": "token", "provider": "Notion"], from: session)
+        let setup = try #require(launcher.setup)
+        #expect(setup.kind == .preferences)
+        #expect(setup.fields.map(\.name) == ["token"])
+        #expect(setup.provider == "Notion")
+        #expect(setup.arguments?["query"] as? String == "notes")
+        #expect(launcher.session == nil)
+
+        #expect(try launcher.handleKey(key(36)), "Return with the token still empty")
+        #expect(launcher.setupForm.error == "Fill in token.")
+        #expect(launcher.setup != nil, "the form stays")
+        #expect(try launcher.handleKey(key(53)))
+        #expect(launcher.setup == nil)
+    }
 }

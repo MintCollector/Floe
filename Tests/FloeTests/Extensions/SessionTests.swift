@@ -525,16 +525,16 @@ struct ExtensionSessionTests {
         let with = ExtensionSession.hostVariables(base, preferences: Data(#"{"unit":"metric"}"#.utf8), hasAI: true)
         #expect(with == [
             "PATH": "/opt/homebrew/bin", "FLOE_PREFERENCES": #"{"unit":"metric"}"#, "FLOE_AI": "1", "FLOE_LAUNCH_TYPE": "userInitiated",
-            "FLOE_RENDER_REFERENCES": "1",
+            "FLOE_RENDER_REFERENCES": "1", "FLOE_OAUTH": "1",
         ])
         let background = ExtensionSession.hostVariables(base, preferences: nil, hasAI: false, launchType: "background")
-        #expect(background == ["PATH": "/opt/homebrew/bin", "FLOE_LAUNCH_TYPE": "background", "FLOE_RENDER_REFERENCES": "1"])
+        #expect(background == ["PATH": "/opt/homebrew/bin", "FLOE_LAUNCH_TYPE": "background", "FLOE_RENDER_REFERENCES": "1", "FLOE_OAUTH": "1"])
     }
 
     @Test func theHostIsToldNotToWatchWhileTheRecordIsOff() {
         let stale = ["PATH": "/opt/homebrew/bin", "FLOE_ACCESS": "off"]
         let off = ExtensionSession.hostVariables(stale, preferences: nil, hasAI: false, recordsAccess: false)
-        #expect(off == ["PATH": "/opt/homebrew/bin", "FLOE_LAUNCH_TYPE": "userInitiated", "FLOE_ACCESS": "off", "FLOE_RENDER_REFERENCES": "1"])
+        #expect(off == ["PATH": "/opt/homebrew/bin", "FLOE_LAUNCH_TYPE": "userInitiated", "FLOE_ACCESS": "off", "FLOE_RENDER_REFERENCES": "1", "FLOE_OAUTH": "1"])
         let recording = ExtensionSession.hostVariables(stale, preferences: nil, hasAI: false, recordsAccess: true)
         #expect(recording[ExtensionSession.accessVariable] == nil, "what the shell held is not passed on")
         #expect(ExtensionSession.hostVariables(stale, preferences: nil, hasAI: false)[ExtensionSession.accessVariable] == nil, "recorded unless said otherwise")

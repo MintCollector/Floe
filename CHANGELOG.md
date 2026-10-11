@@ -92,6 +92,7 @@ After you install:
 - **Each extension's page has one line per command**, with its alias, hotkey and switch. You can give the extension an icon of your own, or remove an extension Floe installed.
 - **Each extension's page shows what it has reached:** the hosts it contacted, the folders it read and changed, and the programs it started, as far as Floe's runtime sees them. It is a record, not a limit. Settings > Privacy switches the record off and forgets it.
 - **GitHub and GitLab extensions sign in with the GitHub CLI and the GitLab CLI.** If `gh` or `glab` is signed in on your Mac, Floe asks once per extension whether it may use that sign-in. For GitHub it lists what the sign-in may do. The extension's page in Settings takes it back.
+- **Other extensions sign in in the browser.** Where the browser's answer cannot reach Floe, Floe asks for the token the extension takes and runs the command again. Known issues says whose service the sign-in uses for now.
 
 ### New: built in
 
@@ -143,7 +144,7 @@ After you install:
 ### Known issues
 
 - **Sync has not run between two Macs.** It needs a release signed for iCloud, and no such release exists yet.
-- **Extensions can sign in only to GitHub and GitLab**, through their command line tools. Others use a token preference until OAuth is built.
+- **Extension sign-in goes through Raycast's sign-in service for now.** Floe has none of its own yet: the browser returns through raycast.com, and some extensions get their token from Raycast's servers. Floe says so before the first sign-in. This is temporary and may stop working, and Floe's own sign-in service is planned to replace it. GitHub and GitLab use their command line tools first, and an extension whose sign-in cannot be received is asked for its token.
 - **`launchCommand`, deeplinks, AI tools and the grid layout** for extensions are not built yet.
 - **The record of what an extension reaches misses some file access.** It sees hosts and programs more reliably than files.
 - **Timers end when Floe quits.** They are held in memory.

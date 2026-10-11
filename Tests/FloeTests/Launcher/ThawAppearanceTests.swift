@@ -536,9 +536,8 @@ struct IncomingURLRouterTests {
     }
 
     @Test func anOAuthLinkDoesNothingWhileSignInIsParked() throws {
-        #expect(OAuthBroker.isParked, "sign-in is parked; when it comes back this test changes with it")
         let received = Received()
-        try router(received).route(#require(URL(string: "floe://oauth?state=a&package_name=b")))
+        try router(oauthIsParked: true, received).route(#require(URL(string: "floe://oauth?state=a&package_name=b")))
         #expect(received.oauth.isEmpty)
         #expect(received.appearance.isEmpty)
     }

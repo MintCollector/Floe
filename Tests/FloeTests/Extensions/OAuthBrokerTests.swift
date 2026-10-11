@@ -37,6 +37,8 @@ private final nonisolated class Waiter: Sendable {
 nonisolated struct OAuthBrokerTests {
     private let broker = OAuthBroker.shared
     private let name = "floe-oauth-tests-\(UUID().uuidString)"
+    /// The state alone says whose sign-in a redirect is, so each test has one of its own.
+    private let state = "state-\(UUID().uuidString)"
 
     private func redirect(_ query: String, to address: String = "floe://oauth") throws -> URL {
         try #require(URL(string: "\(address)?\(query)"))
@@ -52,8 +54,8 @@ nonisolated struct OAuthBrokerTests {
     }
 
     @Test func aRedirectWithTheMatchingStateAnswersTheSignInWithTheWholeAddress() throws {
-        let waiter = Waiter(name, state: "s1")
-        let callback = try redirect("code=abc&state=s1&package_name=\(name)")
+        let waiter = Waiter(name, state: state)
+        let callback = try redirect("code=abc&state=\(state)&package_name=\(name)")
         broker.complete(url: callback)
         #expect(waiter.outcomes == [callback.absoluteString])
 
@@ -61,32 +63,66 @@ nonisolated struct OAuthBrokerTests {
         #expect(waiter.outcomes.count == 1, "a sign-in is answered once")
     }
 
+    @Test func aRedirectThroughRaycastsPageIsMatchedByItsStateAlone() throws {
+        let waiter = Waiter(name, state: state)
+        let callback = try redirect("code=abc&package_name=Extension&state=\(state)")
+        broker.complete(url: callback)
+        #expect(waiter.outcomes == [callback.absoluteString], "Raycast's page names every extension Extension")
+    }
+
+    @Test func theNoticeAboutRaycastIsAskedUntilItIsAgreedToAndNeverAfter() async {
+        let seen = Mutex(false)
+        let answers = Mutex([false, true])
+        let asked = Mutex<[String]>([])
+        let notice = RaycastSignInNotice(
+            seen: { seen.withLock { $0 } },
+            markSeen: { seen.withLock { $0 = true } },
+            asks: { provider in
+                asked.withLock { $0.append(provider) }
+                return answers.withLock { $0.removeFirst() }
+            }
+        )
+        #expect(await notice.allows(provider: "Notion") == false)
+        #expect(seen.withLock { $0 } == false, "a no is not remembered")
+        #expect(await notice.allows(provider: "Notion"))
+        #expect(await notice.allows(provider: "Linear"))
+        #expect(asked.withLock { $0 } == ["Notion", "Notion"])
+    }
+
+    @Test func aSignInTheNoticeIsRefusedForNeverOpensTheBrowser() async {
+        let refusing = OAuthBroker(notice: RaycastSignInNotice(seen: { false }, markSeen: {}, asks: { _ in false }))
+        do {
+            _ = try await refusing.perform(.oauthAuthorize(url: "https://example.com/auth", state: "s1", providerName: "Notion"), extensionName: name)
+            Issue.record("the sign-in went ahead")
+        } catch {
+            #expect((error as? OAuthError).map { String(describing: $0) } == "cancelled")
+        }
+    }
+
     @Test func aRedirectCarryingAnErrorIsHandedOnForTheHostToRead() throws {
-        let waiter = Waiter(name, state: "s1")
-        let callback = try redirect("error=access_denied&state=s1&package_name=\(name)")
+        let waiter = Waiter(name, state: state)
+        let callback = try redirect("error=access_denied&state=\(state)&package_name=\(name)")
         broker.complete(url: callback)
         #expect(waiter.outcomes == [callback.absoluteString])
     }
 
     @Test(arguments: [
-        ("https://oauth", "code=abc&state=s1&package_name=NAME"),
-        ("floe://open", "code=abc&state=s1&package_name=NAME"),
+        ("https://oauth", "code=abc&state=STATE&package_name=NAME"),
+        ("floe://open", "code=abc&state=STATE&package_name=NAME"),
         ("floe://oauth", "code=abc&package_name=NAME"),
-        ("floe://oauth", "code=abc&state=s1"),
         ("floe://oauth", "code=abc&state=other&package_name=NAME"),
-        ("floe://oauth", "code=abc&state=s1&package_name=someone-else"),
     ])
     func aRedirectThatIsNotThisSignInsLeavesItWaiting(address: String, query: String) throws {
-        let waiter = Waiter(name, state: "s1")
-        try broker.complete(url: redirect(query.replacingOccurrences(of: "NAME", with: name), to: address))
+        let waiter = Waiter(name, state: state)
+        try broker.complete(url: redirect(query.replacingOccurrences(of: "NAME", with: name).replacingOccurrences(of: "STATE", with: state), to: address))
         #expect(waiter.outcomes.isEmpty)
 
-        broker.cancel(extensionName: name, state: "s1")
+        broker.cancel(extensionName: name, state: state)
         #expect(waiter.outcomes == ["cancelled"], "it was still waiting")
     }
 
     @Test func aRedirectWithNoQueryLeavesTheSignInWaiting() throws {
-        let waiter = Waiter(name, state: "s1")
+        let waiter = Waiter(name, state: state)
         try broker.complete(url: #require(URL(string: "floe://oauth")))
         #expect(waiter.outcomes.isEmpty)
         broker.cancelAll(for: name)
@@ -94,7 +130,8 @@ nonisolated struct OAuthBrokerTests {
 
     @Test(arguments: ["s1", "s2"])
     func aNewerSignInFromTheSameExtensionReplacesTheOneWaiting(newerState: String) throws {
-        let older = Waiter(name, state: "s1")
+        let newerState = newerState == "s1" ? state : state + "-newer"
+        let older = Waiter(name, state: state)
         let newer = Waiter(name, state: newerState)
         #expect(older.outcomes == ["replaced"])
         #expect(newer.outcomes.isEmpty)
@@ -106,24 +143,24 @@ nonisolated struct OAuthBrokerTests {
     }
 
     @Test func cancellingASignInFailsThatOneOnly() {
-        let waiter = Waiter(name, state: "s1")
+        let waiter = Waiter(name, state: state)
         broker.cancel(extensionName: name, state: "unknown")
         #expect(waiter.outcomes.isEmpty)
 
-        broker.cancel(extensionName: name, state: "s1")
-        broker.cancel(extensionName: name, state: "s1")
+        broker.cancel(extensionName: name, state: state)
+        broker.cancel(extensionName: name, state: state)
         #expect(waiter.outcomes == ["cancelled"])
     }
 
     @Test func aStoppingSessionFailsItsOwnSignInsAndNoOneElses() throws {
         let other = name + "-other"
-        let mine = Waiter(name, state: "s1")
-        let theirs = Waiter(other, state: "s1")
+        let mine = Waiter(name, state: state)
+        let theirs = Waiter(other, state: state)
         broker.cancelAll(for: name)
         #expect(mine.outcomes == ["cancelled"])
         #expect(theirs.outcomes.isEmpty)
 
-        let callback = try redirect("code=abc&state=s1&package_name=\(other)")
+        let callback = try redirect("code=abc&state=\(state)&package_name=\(other)")
         broker.complete(url: callback)
         #expect(theirs.outcomes == [callback.absoluteString])
         #expect(mine.outcomes == ["cancelled"])

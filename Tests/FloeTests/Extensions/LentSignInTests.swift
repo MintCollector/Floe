@@ -267,11 +267,11 @@ struct LentSignInTests {
         let gitlab = await OAuthBroker.lent(.oauthGetTokens(providerId: "GitLab"), extensionName: "gitlab", extensionTitle: "GitLab", lender: lender) as? [String: Any]
         #expect(gitlab?["accessToken"] as? String == "gho_token", "the stand-in has one token for both")
         #expect(book.questions.withLock { $0.last } == "GitLab → GitLab")
-        #expect(await OAuthBroker.lent(.oauthRemoveTokens(providerId: "gitlab"), extensionName: "gitlab", extensionTitle: "GitLab", lender: lender) is NSNull)
+        #expect(await OAuthBroker.lent(.oauthRemoveTokens(providerId: "gitlab"), extensionName: "gitlab", extensionTitle: "GitLab", lender: lender) == nil, "the stored tokens are removed next")
         #expect(await OAuthBroker.lent(.oauthGetTokens(providerId: "google"), extensionName: "drive", extensionTitle: "Drive", lender: lender) == nil)
         #expect(await OAuthBroker.lent(.oauthSetTokens(providerId: "github", tokens: "{}"), extensionName: "github", extensionTitle: "GitHub", lender: lender) == nil)
 
-        #expect(await OAuthBroker.lent(.oauthRemoveTokens(providerId: "GitHub"), extensionName: "github", extensionTitle: "GitHub", lender: lender) is NSNull)
+        #expect(await OAuthBroker.lent(.oauthRemoveTokens(providerId: "GitHub"), extensionName: "github", extensionTitle: "GitHub", lender: lender) == nil)
         #expect(book.allowed.withLock { $0 }.isEmpty, "removing its tokens is the extension signing out")
 
         #expect(HostRequest.oauthGetTokens(providerId: "x").asksOnlyForTokens)

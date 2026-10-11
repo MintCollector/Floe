@@ -785,9 +785,8 @@ final class LauncherModel: ObservableObject {
             paste(text: message["text"] as? String ?? "", html: message["html"] as? String, file: message["file"] as? String)
         case "open":
             open(message["target"] as? String ?? "", application: message["application"] as? String)
-        case "openPreferences":
-            hidePanel()
-            openSettings(session.command.extensionName)
+        case "openPreferences", "signIn":
+            showPreferences(message, of: session)
         default:
             showToastWithoutFooter(message, of: session)
         }

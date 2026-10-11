@@ -73,11 +73,29 @@ struct SetupView: View {
     let request: SetupRequest
     @FocusState private var focusedField: String?
 
+    private var title: String {
+        let command = request.command
+        if let provider = request.provider {
+            return String(localized: "Sign In to \(provider)", bundle: .floe, comment: "A heading. The placeholder is the name of a service, such as Notion.")
+        }
+        return request.kind == .preferences ? String(localized: "Set Up \(command.extensionTitle)", bundle: .floe, comment: "A heading. The placeholder is an extension's name.") : command.title
+    }
+
+    private var note: String {
+        let command = request.command
+        if let provider = request.provider {
+            return String(localized: "Floe can't sign in to \(provider) in the browser yet. \(command.extensionTitle) works with this instead. Change it later in Floe Settings.", bundle: .floe, comment: "Under a field that takes a token. The first placeholder is a service, the second an extension's name.")
+        }
+        return request.kind == .preferences
+            ? String(localized: "\(command.extensionTitle) needs these before it can run. Change them later in Floe Settings.", bundle: .floe)
+            : String(localized: "Arguments for \(command.title).", bundle: .floe)
+    }
+
     var body: some View {
         let command = request.command
         VStack(spacing: 0) {
             PanelHeader(
-                title: request.kind == .preferences ? String(localized: "Set Up \(command.extensionTitle)", bundle: .floe, comment: "A heading. The placeholder is an extension's name.") : command.title,
+                title: title,
                 icon: command.icon,
                 assetsPath: command.assetsPath
             )
@@ -91,9 +109,7 @@ struct SetupView: View {
                         .focused($focusedField, equals: field.name)
                     }
                 } footer: {
-                    Text(request.kind == .preferences
-                        ? "\(command.extensionTitle) needs these before it can run. Change them later in Floe Settings."
-                        : "Arguments for \(command.title).")
+                    Text(note)
                         .font(ThawType.footnote)
                         .foregroundStyle(.secondary)
                 }

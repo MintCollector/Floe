@@ -576,6 +576,9 @@
     "Allow access" : {},
     "Allow it in System Settings, Privacy and Security, Automation." : {},
     "An OpenAI-compatible API" : {},
+    "An extension that signs in through the browser uses Raycast’s sign-in service for now: the browser returns through raycast.com, and some extensions get their token from Raycast’s servers. This is temporary: Floe’s own sign-in service is planned to replace it." : {
+      "comment" : "Raycast is another app's name."
+    },
     "An extension that signs in to GitHub or GitLab can use the GitHub or GitLab CLI’s sign-in on this Mac. Floe asks once per extension." : {},
     "Angle" : {
       "comment" : "The direction of a gradient, in degrees."
@@ -1205,6 +1208,7 @@
     "Extension error" : {},
     "Extension passwords and API keys are kept in iCloud Keychain, which has its own switch in System Settings." : {},
     "Extension passwords and API keys are kept in iCloud Keychain. Clipboard history, receipts and what you search are never sent." : {},
+    "Extension sign-in" : {},
     "Extensions" : {
       "comment" : "The heading over the settings for extensions."
     },
@@ -1283,7 +1287,19 @@
       }
     },
     "Floe can't answer that request." : {},
+    "Floe can't sign in to %@ in the browser yet. %@ works with this instead. Change it later in Floe Settings." : {
+      "comment" : "Under a field that takes a token. The first placeholder is a service, the second an extension's name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Floe can't sign in to %1$@ in the browser yet. %2$@ works with this instead. Change it later in Floe Settings."
+          }
+        }
+      }
+    },
     "Floe collects no analytics or usage data. What you open, and how often, stays in a file on this Mac. The network calls it makes are listed below." : {},
+    "Floe has no sign-in of its own yet. For now the browser returns through raycast.com, and some extensions get their token from Raycast’s servers. This is temporary and may stop working. Floe’s own sign-in service is planned to replace it." : {},
     "Floe holds the rates of %@." : {
       "comment" : "The placeholder is a date as the bank writes it, such as 2026-10-07."
     },
@@ -2399,6 +2415,12 @@
       "comment" : "A command that turns the Mac off."
     },
     "Shut down your Mac now?" : {},
+    "Sign In to %@" : {
+      "comment" : "A heading. The placeholder is the name of a service, such as Notion."
+    },
+    "Sign in to %@ through Raycast?" : {
+      "comment" : "The placeholder is a service such as Notion. Raycast is another app's name."
+    },
     "Sign-in timed out." : {},
     "Sign-in was cancelled." : {},
     "Sign-in was replaced by a newer request." : {},

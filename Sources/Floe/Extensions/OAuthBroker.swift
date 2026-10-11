@@ -5,11 +5,8 @@
 //  Copyright (Floe) © 2026 René Jiménez
 //  Licensed under the GNU AGPLv3
 
-// Extension sign-in over OAuth PKCE. Floe receives the provider's redirect at `floe://oauth`,
-// so a provider's OAuth app must allow that redirect address; sign-in only works with providers
-// whose app does. The host builds the S256 request (see runtime/api/oauth.ts) and the broker opens
-// it in the browser, matches the callback's `state` and `package_name` against the pending sign-in,
-// and keeps tokens in the Keychain per extension and provider.
+// Extension sign-in over OAuth PKCE, with the request built in runtime/api/oauth.ts. Temporary: the browser
+// returns through raycast.com, whose page opens `floe://oauth` because the state names that scheme.
 
 import AppKit
 import Foundation
@@ -45,21 +42,27 @@ nonisolated enum OAuthError: LocalizedError {
 final nonisolated class OAuthBroker: NSObject, Sendable {
     static let shared = OAuthBroker()
 
-    /// Sign-in through the browser is parked, and extensions fall back to a token preference.
-    /// To bring it back, turn this off: `IncomingURLRouter` then hands `floe://oauth` links to `complete(url:)`.
-    static let isParked = true
+    /// With this on, sign-in through the browser is parked and extensions fall back to a token preference.
+    /// While it is off, `IncomingURLRouter` hands `floe://oauth` links to `complete(url:)`.
+    static let isParked = false
 
     /// How long the browser has to come back before the sign-in fails.
     static let timeout: TimeInterval = 600
 
     private struct Pending: Sendable {
         let extensionName: String
+        let state: String
         let resume: @Sendable (Result<String, Error>) -> Void
         let timeout: Task<Void, Never>
     }
 
     /// Sign-ins waiting for the browser, keyed by extension name and state together.
     private let pending = Mutex<[String: Pending]>([:])
+    private let notice: RaycastSignInNotice
+
+    init(notice: RaycastSignInNotice = RaycastSignInNotice()) {
+        self.notice = notice
+    }
 
     /// Answers a request with a sign-in that is lent, when it is for one. Nil for any other request, which goes
     /// on to the browser sign-in and its storage.
@@ -83,8 +86,9 @@ final nonisolated class OAuthBroker: NSObject, Sendable {
     @concurrent
     func perform(_ request: HostRequest, extensionName: String) async throws -> Any {
         switch request {
-        case let .oauthAuthorize(urlString, state, _):
+        case let .oauthAuthorize(urlString, state, providerName):
             guard let url = URL(string: urlString) else { throw OAuthError.invalidRedirect("Missing or invalid param: url") }
+            guard await notice.allows(provider: providerName) else { throw OAuthError.cancelled }
             let callback = try await authorize(extensionName: extensionName, url: url, state: state)
             return ["url": callback]
         case let .oauthGetTokens(providerId):
@@ -140,7 +144,7 @@ final nonisolated class OAuthBroker: NSObject, Sendable {
         let replaced: [Pending] = pending.withLock { pending in
             let old = pending.filter { $0.value.extensionName == extensionName }.map(\.key)
                 .compactMap { pending.removeValue(forKey: $0) }
-            pending[key] = Pending(extensionName: extensionName, resume: resume, timeout: timeout)
+            pending[key] = Pending(extensionName: extensionName, state: state, resume: resume, timeout: timeout)
             return old
         }
         for entry in replaced {
@@ -171,15 +175,16 @@ final nonisolated class OAuthBroker: NSObject, Sendable {
         entry.resume(.failure(error))
     }
 
-    /// Answers the waiting sign-in whose extension and state the callback names; anything else is ignored.
+    /// Answers the waiting sign-in whose state the callback carries; anything else is ignored.
+    /// Raycast's page names every extension "Extension", so the state alone says whose sign-in it is.
     func complete(url: URL) {
         guard url.scheme == "floe", url.host == "oauth",
               let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
-              let state = items.first(where: { $0.name == "state" })?.value,
-              let packageName = items.first(where: { $0.name == "package_name" })?.value
+              let state = items.first(where: { $0.name == "state" })?.value
         else { return }
-        let key = pendingKey(extensionName: packageName, state: state)
-        let entry = pending.withLock { $0.removeValue(forKey: key) }
+        let entry = pending.withLock { pending in
+            pending.first { $0.value.state == state }.flatMap { pending.removeValue(forKey: $0.key) }
+        }
         guard let entry else { return }
         entry.timeout.cancel()
         entry.resume(.success(url.absoluteString))

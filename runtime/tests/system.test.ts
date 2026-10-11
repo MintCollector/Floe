@@ -695,6 +695,20 @@ describe("OAuth while sign-in is parked", () => {
     await expect(client.authorize({ url: "https://example.com" })).rejects.toThrow(`Add "API Token" in`);
   });
 
+  test("a sign-in that a token preference can stand in for asks the app to show that preference", async () => {
+    ctx.manifest = { name: "notion", preferences: [password("notion_token", "Internal Integration Secret")] };
+    await expect(new api.OAuth.PKCEClient({ providerName: "Notion" }).authorize({ url: "https://example.com" })).rejects.toThrow("Floe can't sign in to Notion yet.");
+    expect(sent("signIn")).toEqual([{ type: "signIn", preference: "notion_token", provider: "Notion" }]);
+  });
+
+  test("a lent provider and an extension with no token preference ask for none", async () => {
+    ctx.manifest = { name: "github", preferences: [password("personalAccessToken")] };
+    await expect(new api.OAuth.PKCEClient({ providerName: "GitHub" }).authorize({ url: "https://example.com" })).rejects.toThrow();
+    ctx.manifest = { name: "calendar", preferences: [{ name: "weekStart", type: "dropdown" }] };
+    await expect(new api.OAuth.PKCEClient({ providerName: "Google" }).authorize({ url: "https://example.com" })).rejects.toThrow();
+    expect(sent("signIn")).toEqual([]);
+  });
+
   test("without a token preference the message says there is none", async () => {
     ctx.manifest = { name: "calendar", preferences: [{ name: "weekStart", type: "dropdown" }] };
     const client = new api.OAuth.PKCEClient({ providerName: "Google" });
@@ -703,7 +717,7 @@ describe("OAuth while sign-in is parked", () => {
 });
 
 describe("OAuth with sign-in on", () => {
-  const clientOptions = { redirectMethod: api.OAuth.RedirectMethod.App, providerName: "GitHub", providerId: "github" };
+  const clientOptions = { redirectMethod: api.OAuth.RedirectMethod.Web, providerName: "GitHub", providerId: "github" };
 
   beforeEach(() => {
     process.env.FLOE_OAUTH = "1";
@@ -712,18 +726,42 @@ describe("OAuth with sign-in on", () => {
     delete process.env.FLOE_OAUTH;
   });
 
-  test("authorizationRequest redirects at floe://oauth with an S256 challenge", async () => {
+  test("authorizationRequest redirects through Raycast's page with an S256 challenge", async () => {
     ctx.manifest = { name: "github" };
     const request = await new api.OAuth.PKCEClient(clientOptions).authorizationRequest({
       endpoint: "https://github.com/login/oauth/authorize",
       clientId: "cid",
       scope: "repo",
     });
-    expect(request.redirectURI).toBe("floe://oauth?package_name=github");
+    expect(request.redirectURI).toBe("https://raycast.com/redirect?packageName=Extension");
     const url = new URL(request.toURL());
+    expect(url.searchParams.get("redirect_uri")).toBe("https://raycast.com/redirect?packageName=Extension");
     expect(url.searchParams.get("code_challenge")).toBe(request.codeChallenge);
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("state")).toBe(request.state);
+  });
+
+  test("the state names Floe's scheme the way Raycast's redirect page reads it, and differs every time", async () => {
+    ctx.manifest = { name: "notion" };
+    const client = new api.OAuth.PKCEClient({ redirectMethod: api.OAuth.RedirectMethod.Web, providerName: "Notion" });
+    const options = { endpoint: "https://example.com/auth", clientId: "c", scope: "s" };
+    const [first, second] = [await client.authorizationRequest(options), await client.authorizationRequest(options)];
+    expect(first.state).toMatch(/^[A-Za-z0-9_-]+$/);
+    const read = JSON.parse(Buffer.from(first.state, "base64url").toString());
+    expect(read).toEqual({ scheme: "floe", id: read.id, providerName: "Notion" });
+    expect(read.id).toHaveLength(32);
+    expect(second.state).not.toBe(first.state);
+  });
+
+  test("a redirect straight to Raycast cannot be received, so it falls back to the token preference", async () => {
+    ctx.manifest = { name: "calendar", preferences: [{ name: "apiKey", type: "password" }] };
+    const options = { endpoint: "https://example.com/auth", clientId: "c", scope: "s" };
+    for (const redirectMethod of [api.OAuth.RedirectMethod.App, api.OAuth.RedirectMethod.AppURI]) {
+      const client = new api.OAuth.PKCEClient({ redirectMethod, providerName: "Google" });
+      await expect(client.authorizationRequest(options)).rejects.toThrow("Floe can't sign in to Google yet.");
+    }
+    expect(sent("signIn")).toHaveLength(2);
+    expect(sent("request")).toEqual([]);
   });
 
   test("authorize resolves the code from the app's callback", async () => {
@@ -733,7 +771,7 @@ describe("OAuth with sign-in on", () => {
     const authorized = client.authorize(request);
     const [sentRequest] = sent("request");
     expect(sentRequest).toMatchObject({ method: "oauth.authorize", params: { providerName: "GitHub", state: request.state } });
-    handleReply({ id: sentRequest.id, result: { url: `floe://oauth?package_name=github&code=abc&state=${request.state}` } });
+    handleReply({ id: sentRequest.id, result: { url: `floe://oauth?code=abc&package_name=Extension&state=${request.state}` } });
     await expect(authorized).resolves.toEqual({ authorizationCode: "abc" });
   });
 

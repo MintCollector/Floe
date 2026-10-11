@@ -22,12 +22,28 @@ extension LauncherModel {
         switch request.kind {
         case .preferences:
             let command = request.command
-            PreferenceStore.save(values, fields: command.extensionPreferences, extensionName: command.extensionName, command: nil)
-            PreferenceStore.save(values, fields: command.commandPreferences, extensionName: command.extensionName, command: command)
-            run(command)
+            PreferenceStore.save(values, fields: request.asked(of: command.extensionPreferences), extensionName: command.extensionName, command: nil)
+            PreferenceStore.save(values, fields: request.asked(of: command.commandPreferences), extensionName: command.extensionName, command: command)
+            run(command, arguments: request.arguments)
         case .arguments:
             run(request.command, arguments: values)
         }
+    }
+
+    /// A command asked for its preferences in Settings, or to sign in, which Floe cannot do yet. For a sign-in
+    /// the token it takes instead is asked for in a form, and the command runs again once it is filled in.
+    func showPreferences(_ message: [String: Any], of session: ExtensionSession) {
+        let command = session.command
+        guard message["type"] as? String == "signIn" else {
+            hidePanel()
+            openSettings(command.extensionName)
+            return
+        }
+        guard let field = command.preferences.first(where: { $0.name == message["preference"] as? String }) else { return }
+        let arguments = session.arguments
+        end(session)
+        let provider = message["provider"] as? String ?? command.extensionTitle
+        beginSetup(SetupRequest(command: command, kind: .preferences, fields: [field], provider: provider, arguments: arguments))
     }
 
     func cancelSetup() {

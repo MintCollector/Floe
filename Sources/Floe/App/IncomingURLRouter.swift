@@ -47,7 +47,7 @@ final class IncomingURLRouter: NSObject {
         route(url)
     }
 
-    /// Thaw's appearance answer and, once sign-in is back, the browser's return. Any other link does nothing.
+    /// Thaw's appearance answer and, unless sign-in is parked, the browser's return. Any other link does nothing.
     func route(_ url: URL) {
         guard url.scheme?.lowercased() == "floe" else { return }
         switch url.host?.lowercased() {
