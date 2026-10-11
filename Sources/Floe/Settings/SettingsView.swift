@@ -326,7 +326,7 @@ struct GeneralSettingsView: View {
                         Text("Open Floe")
                     }
                 )
-                Toggle("Launch at Login", isOn: Binding(get: { settings.launchAtLogin }, set: { settings.launchAtLogin = $0 }))
+                LaunchAtLoginToggle(settings: settings)
                 Toggle("Show in Dock", isOn: $settings.showInDock)
                 AutomaticUpdateCheckToggle()
                 Picker(selection: $settings.popToRootDelay) {

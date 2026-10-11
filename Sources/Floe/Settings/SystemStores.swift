@@ -10,15 +10,12 @@ import ServiceManagement
 
 extension AppSettings {
     /// Login items only work for the installed app bundle, not `swift run`.
-    var launchAtLogin: Bool {
-        get { SMAppService.mainApp.status == .enabled }
-        set {
-            objectWillChange.send()
-            if newValue {
-                try? SMAppService.mainApp.register()
-            } else {
-                try? SMAppService.mainApp.unregister()
-            }
+    func setLaunchAtLogin(_ wanted: Bool) {
+        objectWillChange.send()
+        if wanted {
+            try? SMAppService.mainApp.register()
+        } else {
+            try? SMAppService.mainApp.unregister()
         }
     }
 }

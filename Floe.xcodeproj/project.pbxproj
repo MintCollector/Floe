@@ -92,6 +92,7 @@
 		4E1766F160310A9E2F6577A9 /* SetupFormModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8529561777F9EC462CCC310A /* SetupFormModel.swift */; };
 		515574D9FBFA46DBB599CA2D /* OpencodeTextStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2505656E388B4F78C6E04841 /* OpencodeTextStream.swift */; };
 		516FEE584F3FE29D436BE2EC /* AppleScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 975C93B46D2CE2C1CB09E1ED /* AppleScript.swift */; };
+		525DBE713A4F5B8D50A52DC4 /* LaunchAtLoginToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2AEB5197FF57C9C7404E34 /* LaunchAtLoginToggle.swift */; };
 		538B5734D434262AA51C0789 /* MarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C97FB08D3CFBC2414EE5DBFE /* MarkdownView.swift */; };
 		5476B0439709CF8DF747ED41 /* Selection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2586ADD4A7E5A2899FE239C7 /* Selection.swift */; };
 		553CA566F3573D1B855CA623 /* Model+Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B92AFF31F28A7B38B57533 /* Model+Clipboard.swift */; };
@@ -537,6 +538,7 @@
 		B8BEB17B69D9ECF2DA775BBF /* SearchViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViews.swift; sourceTree = "<group>"; };
 		BAAAB6379CF2805E7A3A0A9E /* ScopeRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopeRows.swift; sourceTree = "<group>"; };
 		BBAB21F1158EF43FF4513FAB /* ModeHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeHost.swift; sourceTree = "<group>"; };
+		BC2AEB5197FF57C9C7404E34 /* LaunchAtLoginToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginToggle.swift; sourceTree = "<group>"; };
 		BE0AE17795FC335EFF92ADDD /* ProcessLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessLink.swift; sourceTree = "<group>"; };
 		C0D0CD81D8D94FE9134AF130 /* MenuBarCommandsSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarCommandsSettingsSection.swift; sourceTree = "<group>"; };
 		C1B83CE1B17D83A1AC6396FF /* HotkeyRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorder.swift; sourceTree = "<group>"; };
@@ -847,6 +849,7 @@
 				3093D2F53465270315B2B310 /* ExtensionSettingsView.swift */,
 				F245C534BE2C8F28BF639F5B /* ExtensionStoreSettingsPage.swift */,
 				5254060A4A42F0A46B71A696 /* Keychain.swift */,
+				BC2AEB5197FF57C9C7404E34 /* LaunchAtLoginToggle.swift */,
 				C0D0CD81D8D94FE9134AF130 /* MenuBarCommandsSettingsSection.swift */,
 				0740127A73E231F715377D0B /* OnboardingTourView.swift */,
 				1BF8D4B47628BB959BFF6E65 /* QuicklinksSettingsPage.swift */,
@@ -1358,6 +1361,7 @@
 				CB95D1A1C45DFF7DDFC766A8 /* Keychain.swift in Sources */,
 				8D75F667CD0C24CDD292A1B1 /* Keywords.swift in Sources */,
 				EAC0EDDF7C87EF1A2DB07471 /* KnownNoteFolders.swift in Sources */,
+				525DBE713A4F5B8D50A52DC4 /* LaunchAtLoginToggle.swift in Sources */,
 				ED5A0F0AF32BEA4E555C82DD /* LauncherAppearance.swift in Sources */,
 				FABB403BBB3C3189958DD1BF /* LauncherGlass.swift in Sources */,
 				CABB2AAE0CB58A33DCC1A8A0 /* LauncherLayout.swift in Sources */,
