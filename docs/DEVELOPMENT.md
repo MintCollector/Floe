@@ -519,6 +519,8 @@ profile carries `production` for push and allows the Production environment.
     .build/debug/Floe --menubar [query]                 # menu bar items Floe can open
     .build/debug/Floe --panel-snapshot /tmp/p           # root, menu bar and answer views, drawn off screen
     FLOE_BENCH_DUMP=/tmp/s .build/debug/Floe --bench-settings  # settings page timings and snapshots
+    .build/debug/Floe --bench-search                    # the catalog scan, each keystroke, and the memory held
+    ./scripts/check-budget.sh .build/debug/Floe         # fails over 100 MB of that memory; CI runs it
     bun runtime/survey.ts ~/.config/raycast/extensions      # compatibility across many extensions
     FLOE_SETTINGS_CLOSE_AFTER=3 .build/debug/Floe --settings --page about  # the settings process alone; exits 0 when its window closes
     FLOE_OPEN_SETTINGS=5,20 swift run                   # the launcher opens Settings by itself after 5 and 20 seconds

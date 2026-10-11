@@ -147,6 +147,11 @@ jobs:
           echo "$output"
           grep -q '^SELFTEST OK' <<<"$output"
 
+      # The launcher drawn off screen with searches typed into it. About 50 MB in a debug build.
+      - name: Memory budget
+        if: needs.changes.outputs.code == 'true'
+        run: ./scripts/check-budget.sh Build/Build/Products/Debug/Floe.app/Contents/MacOS/Floe 100
+
       # Swift Testing and bun test, with the coverage reports the Sonar job reads.
       - name: Tests with coverage
         if: needs.changes.outputs.code == 'true'

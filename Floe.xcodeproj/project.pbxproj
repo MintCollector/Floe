@@ -545,6 +545,7 @@
 		C1F0E8A487C104CE55B6B8CE /* ExchangeRates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRates.swift; sourceTree = "<group>"; };
 		C2E2C5C29CB5FB6EA6176046 /* IncomingURLRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingURLRouter.swift; sourceTree = "<group>"; };
 		C4791DC4C059AED96BCEC4BD /* MemorySyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySyncStore.swift; sourceTree = "<group>"; };
+		C586F4E26A762CE879BEE71B /* check-budget.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "check-budget.sh"; sourceTree = "<group>"; };
 		C71DBBF84C644A103F04FB66 /* ReadingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPage.swift; sourceTree = "<group>"; };
 		C79E1E2A29B7742FF154E618 /* TypedLocationSearchProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypedLocationSearchProvider.swift; sourceTree = "<group>"; };
 		C8BC098F6B0847921A77F6BF /* Credits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Credits.swift; sourceTree = "<group>"; };
@@ -704,6 +705,7 @@
 			isa = PBXGroup;
 			children = (
 				D56EF7580052CE64737A4D6C /* build-fend.sh */,
+				C586F4E26A762CE879BEE71B /* check-budget.sh */,
 				E6F2A419B59FCCDC76E1C76C /* coverage.sh */,
 				0C65960D5E02D3842BE4BFEF /* devrun.sh */,
 				342BD805AEDC50518DA23278 /* fend-corpus.py */,
