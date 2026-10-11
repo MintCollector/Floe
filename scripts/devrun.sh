@@ -116,7 +116,7 @@ fail() {
 sign_for_icloud() {
     local identity work application team
     [[ -f "$PROFILE" ]] || fail "No provisioning profile at $PROFILE (set FLOE_PROVISIONING_PROFILE)."
-    identity="${FLOE_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | grep -v CSSMERR | head -1 | awk '{print $2}')}"
+    identity="${FLOE_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk '/Developer ID Application/ && !/CSSMERR/ && !found { print $2; found = 1 }')}"
     [[ -n "$identity" ]] || fail "No Developer ID Application certificate in the keychain."
 
     work=$(mktemp -d)
@@ -143,15 +143,17 @@ sign_for_icloud() {
 
 # macOS ties a permission such as Accessibility to the signature. The build's ad hoc one changes every
 # time, so each build would lose its grants; a development certificate keeps them.
-IDENTITY="${FLOE_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | grep -v CSSMERR | head -1 | awk '{print $2}')}"
 if [[ "$ICLOUD" -eq 1 ]]; then
     sign_for_icloud
-elif [[ -n "$IDENTITY" ]]; then
-    say "Signing with a development certificate, so permissions survive the build…"
-    codesign --force --deep --preserve-metadata=entitlements --sign "$IDENTITY" "$APP" 2>/dev/null
-    codesign --verify --deep --strict "$APP"
 else
-    say "No development certificate found: the build stays ad hoc, and macOS will ask for permissions again."
+    IDENTITY="${FLOE_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ && !/CSSMERR/ && !found { print $2; found = 1 }')}"
+    if [[ -n "$IDENTITY" ]]; then
+        say "Signing with a development certificate, so permissions survive the build…"
+        codesign --force --deep --preserve-metadata=entitlements --sign "$IDENTITY" "$APP" 2>/dev/null
+        codesign --verify --deep --strict "$APP"
+    else
+        say "No development certificate found: the build stays ad hoc, and macOS will ask for permissions again."
+    fi
 fi
 
 quit_running_app

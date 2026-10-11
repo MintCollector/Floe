@@ -152,6 +152,10 @@ jobs:
         if: needs.changes.outputs.code == 'true'
         run: ./scripts/check-budget.sh Build/Build/Products/Debug/Floe.app/Contents/MacOS/Floe 100
 
+      - name: Signing script tests
+        if: needs.changes.outputs.code == 'true'
+        run: python3 -B -m unittest discover -s scripts/tests -v
+
       # Swift Testing and bun test, with the coverage reports the Sonar job reads.
       - name: Tests with coverage
         if: needs.changes.outputs.code == 'true'

@@ -172,6 +172,7 @@ samples instead, including `diagnostics`, which fails on purpose to exercise the
 
     swift test                                   # Swift Testing suites in Tests/FloeTests
     bun --config=runtime/bunfig.toml test ./runtime   # runtime suites in runtime/tests
+    python3 -B -m unittest discover -s scripts/tests -v  # signing branches, with build/install commands replaced
     ./scripts/coverage.sh --summary              # both, with coverage per measured file
 
 The Swift tests import the app's module directly and never launch it. Logic lives in files that can run
