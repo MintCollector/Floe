@@ -315,10 +315,12 @@ struct SearchScopeTests {
 
     @Test func theMenuScopeScansOnceAndRanksItemsByTheNameTheyAreShownBy() async {
         let scans = ScanCount()
+        // The scope's own clock: a slow machine cannot make the scan look old.
+        var now = Date(timeIntervalSinceReferenceDate: 0)
         let scope = MenuBarSearchScope(isTrusted: { true }, scan: {
             scans.increment()
             return [extra("Clock"), extra("AirPort", owner: "Control Center"), extra("Battery")]
-        })
+        }, now: { now })
         var context = SearchContext(query: "menu wifi")
         context.menuBarItemNames = ["test|AirPort": "Wifi"]
         #expect(scope.results(for: "wifi", context: context).isEmpty, "nothing is known before the first scan")
@@ -336,6 +338,9 @@ struct SearchScopeTests {
         #expect(scope.updates(for: "clock", context: context) == nil, "a fresh scan is reused while typing")
         #expect(scope.results(for: "clock", context: context).map(\.title) == ["Clock"])
         #expect(scans.value == 1)
+
+        now += MenuBarSearchScope.scanLifetime
+        #expect(scope.updates(for: "clock", context: context) != nil, "a scan as old as its lifetime is made again")
     }
 
     @Test func theStandardScopesAreFilesClipboardMenuSSHProcessesPortsShortcutsTimersContactsAndKeywords() {

@@ -19,13 +19,19 @@ final class MenuBarSearchScope: SearchScope {
 
     private let isTrusted: () -> Bool
     private let scan: @Sendable () -> [MenuBarExtra]
+    private let now: () -> Date
     /// The last scan, shown at once while the next one runs.
     private var extras: [MenuBarExtra] = []
     private var scannedAt: Date?
 
-    init(isTrusted: @escaping () -> Bool = { MenuBarExtras.isTrusted }, scan: @escaping @Sendable () -> [MenuBarExtra] = MenuBarExtras.scan) {
+    init(
+        isTrusted: @escaping () -> Bool = { MenuBarExtras.isTrusted },
+        scan: @escaping @Sendable () -> [MenuBarExtra] = MenuBarExtras.scan,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.isTrusted = isTrusted
         self.scan = scan
+        self.now = now
     }
 
     func results(for text: String, context: SearchContext) -> [RootItem] {
@@ -35,7 +41,7 @@ final class MenuBarSearchScope: SearchScope {
 
     func updates(for text: String, context: SearchContext) -> AsyncStream<[RootItem]>? {
         guard isTrusted() else { return nil }
-        if let scannedAt, Date().timeIntervalSince(scannedAt) < Self.scanLifetime {
+        if let scannedAt, now().timeIntervalSince(scannedAt) < Self.scanLifetime {
             return nil
         }
         let scan = scan
@@ -46,7 +52,7 @@ final class MenuBarSearchScope: SearchScope {
             DispatchQueue.main.async { [weak self] in
                 if let self {
                     extras = found
-                    scannedAt = Date()
+                    scannedAt = now()
                     continuation.yield(rows(for: text, names: names))
                 }
                 continuation.finish()
