@@ -247,6 +247,65 @@ struct FileIndexServiceTests {
         #expect(fixture.sinces.last == 150)
     }
 
+    @Test func historicalEventsDeliveredWhenWatchingStartsAreAppliedAfterLoading() async throws {
+        let fixture = try IndexFixture(files: ["first.txt"])
+        let first = FileIndexService(environment: fixture.savingEnvironment)
+        first.set(on: true)
+        await first.settled()
+        try fixture.add("second.txt")
+
+        var environment = fixture.savingEnvironment
+        environment.watch = { root, _, deliver in
+            deliver([.folder(root)], 150)
+            return {}
+        }
+        let second = FileIndexService(environment: environment)
+        second.set(on: true)
+        await second.settled()
+        // Also drain the replay queued during initialization.
+        await second.settled()
+        #expect(second.files(matching: "second")?.map(\.name) == ["second.txt"])
+    }
+
+    @Test func switchingOffDuringASaveDoesNotLeaveTheCacheBehind() async throws {
+        let fixture = try IndexFixture(files: ["private.txt"])
+        let holder = Mutex<FileIndexService?>(nil)
+        var environment = fixture.savingEnvironment
+        environment.volume = { _ in
+            holder.withLock { $0 }?.set(on: false)
+            return "volume-a"
+        }
+        let service = FileIndexService(environment: environment)
+        holder.withLock { $0 = service }
+        defer { holder.withLock { $0 = nil } }
+        service.set(on: true)
+        await service.settled()
+        await service.settled()
+        #expect(service.state == .off)
+        #expect(FileManager.default.fileExists(atPath: fixture.saved.path) == false)
+        #expect(FileManager.default.fileExists(atPath: FileIndexService.stampFile(for: fixture.saved).path) == false)
+    }
+
+    @Test func startingTheIndexReadsItsRootAndStampOffTheMainThread() async throws {
+        let fixture = try IndexFixture(files: ["first.txt"])
+        let first = FileIndexService(environment: fixture.savingEnvironment)
+        first.set(on: true)
+        await first.settled()
+        var environment = fixture.savingEnvironment
+        environment.root = { [root = fixture.root] in
+            #expect(Thread.isMainThread == false)
+            return root.path
+        }
+        environment.volume = { _ in
+            #expect(Thread.isMainThread == false)
+            return "volume-a"
+        }
+        let second = FileIndexService(environment: environment)
+        second.set(on: true)
+        await second.settled()
+        #expect(second.files(matching: "first")?.count == 1)
+    }
+
     @Test func aSavedIndexFromAnotherVolumeOrADamagedOneIsWalkedAgain() async throws {
         let fixture = try IndexFixture(files: ["early.txt"])
         let first = FileIndexService(environment: fixture.savingEnvironment)
@@ -281,6 +340,7 @@ struct FileIndexServiceTests {
         #expect(FileManager.default.fileExists(atPath: stamp.path))
 
         service.set(on: false)
+        await service.settled()
         #expect(!FileManager.default.fileExists(atPath: fixture.saved.path), "the names of the user's files do not outlive the switch")
         #expect(!FileManager.default.fileExists(atPath: stamp.path))
     }

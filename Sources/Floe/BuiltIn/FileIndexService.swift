@@ -65,11 +65,11 @@ final nonisolated class FileIndexService: Sendable {
 
     private struct Running {
         let index: FileIndex
-        let root: String
-        let stop: @Sendable () -> Void
+        var root = ""
+        var stop: @Sendable () -> Void = {}
         var isReady = false
         /// The last event the index holds the changes of.
-        var event: UInt64
+        var event: UInt64 = 0
         /// Counts the changes, so only the save after the last one is carried out.
         var saves = 0
     }
@@ -111,36 +111,49 @@ final nonisolated class FileIndexService: Sendable {
             running.withLock { running in
                 running?.stop()
                 running = nil
+                // Runs after any save already in flight, and before a later start can load the cache.
+                work.async { [self] in removeSaved() }
             }
-            removeSaved()
             publish()
         }
     }
 
     private func start() {
         guard let index = try? FileIndex() else { return }
+        running.withLock { running in
+            guard running == nil else { return }
+            running = Running(index: index)
+            work.async { [weak self] in self?.initialize(index) }
+        }
+        publish()
+    }
+
+    /// Runs entirely on the serial worker: even an immediate replay is queued behind loading the index.
+    private func initialize(_ index: FileIndex) {
+        guard isCurrent(index) else { return }
+        publish()
         let root = environment.root()
-        let changed: @Sendable ([FileIndexChange], UInt64) -> Void = { [weak self] changes, event in
+        let stamp = stamp(for: root)
+        let event = stamp?.event ?? environment.currentEvent()
+        let stop = environment.watch(root, stamp?.event) { [weak self] changes, event in
             guard let self else { return }
             work.async { self.apply(changes, upTo: event, to: index) }
         }
-        let stamp = stamp(for: root)
         let started = running.withLock { running in
-            guard running == nil else { return false }
-            // Watching starts before the walk or the reading, so what changes meanwhile is read again afterwards.
-            let event = stamp?.event ?? environment.currentEvent()
-            running = Running(index: index, root: root, stop: environment.watch(root, stamp?.event, changed), event: event)
+            guard running?.index === index else { return false }
+            running?.root = root
+            running?.stop = stop
+            running?.event = event
             return true
         }
-        guard started else { return }
-        publish()
-        work.async { [weak self] in
-            guard let self, isCurrent(index) else { return }
-            if stamp != nil, let saved = environment.saved, index.load(from: saved, root: root, excludedNames: Self.excludedNames, packageSuffixes: Self.packageSuffixes) {
-                setReady(true, for: index)
-            } else {
-                build(index, root: root)
-            }
+        guard started else {
+            stop()
+            return
+        }
+        if stamp != nil, let saved = environment.saved, index.load(from: saved, root: root, excludedNames: Self.excludedNames, packageSuffixes: Self.packageSuffixes) {
+            setReady(true, for: index)
+        } else {
+            build(index, root: root)
         }
     }
 
