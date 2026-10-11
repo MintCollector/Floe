@@ -22,7 +22,9 @@ struct Credit: Identifiable {
     let link: String
     let group: Group
 
-    var id: String { name }
+    var id: String {
+        name
+    }
 }
 
 enum Credits {

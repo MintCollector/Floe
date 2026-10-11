@@ -116,7 +116,7 @@ extension ExtensionSession {
     private func hostStarted(_ identifier: pid_t) {
         processID = identifier
         watchdog = Timer.scheduledOnMain(withTimeInterval: 3, repeats: true) { [weak self] in
-            guard let self, processID != nil else { return }
+            guard let self, let processID, !stopsOverCeiling(holding: Processes.memory(of: processID)) else { return }
             heartbeat()
         }
     }
@@ -138,6 +138,22 @@ extension ExtensionSession {
         guard !isStopping, failure == nil else { return }
         let message = hadStarted ? String(localized: "The extension stopped unexpectedly.", bundle: .floe) : String(localized: "The extension couldn't start.", bundle: .floe)
         failure = SessionFailure(kind: hadStarted ? .crashed : .error, message: message, details: error.localizedDescription)
+    }
+
+    /// One extension must not take the Mac's memory: a host holding more than this is stopped.
+    static let memoryCeiling: UInt64 = 1 << 30
+
+    /// Part of a watchdog tick. True when the host was over the ceiling and has been stopped.
+    func stopsOverCeiling(holding memory: UInt64) -> Bool {
+        guard memory > Self.memoryCeiling, failure == nil else { return false }
+        failure = SessionFailure(
+            kind: .crashed,
+            message: String(localized: "The extension used too much memory and was stopped.", bundle: .floe),
+            details: String(localized: "It held \(String(memory / 1_048_576)) MB.", bundle: .floe, comment: "The placeholder is a number of megabytes.")
+        )
+        onMessage(["type": "crashed"])
+        forceStop()
+        return true
     }
 
     /// Stops the process, optionally after a grace period so trailing messages still arrive.

@@ -1478,6 +1478,9 @@
         }
       }
     },
+    "It held %@ MB." : {
+      "comment" : "The placeholder is a number of megabytes."
+    },
     "It replaced an older checkpoint of the same name. Deleting this one does not bring the older one back." : {},
     "Its files and tabs are not touched. Only the list of them goes." : {},
     "Its folder goes to the Trash. Its preferences and what it stored are kept, for when it is installed again." : {},
@@ -2629,6 +2632,7 @@
     "The extension stopped unexpectedly. It was killed by signal %d." : {
       "comment" : "The placeholder is a number."
     },
+    "The extension used too much memory and was stopped." : {},
     "The file couldn't be read as text." : {},
     "The introduction from the first launch." : {},
     "The last 200 things Floe changed: commands run, files trashed, processes quit. Type “receipts” to see them. Off forgets them." : {},

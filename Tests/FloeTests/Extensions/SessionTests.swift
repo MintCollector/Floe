@@ -339,6 +339,16 @@ struct ExtensionSessionTests {
         #expect(session.failure?.kind == .unresponsive)
     }
 
+    @Test func aHostOverTheMemoryCeilingIsStoppedAndSaysWhy() {
+        #expect(!session.stopsOverCeiling(holding: ExtensionSession.memoryCeiling), "at the ceiling is still allowed")
+        #expect(session.failure == nil)
+        #expect(session.stopsOverCeiling(holding: ExtensionSession.memoryCeiling + 5 * 1_048_576))
+        #expect(session.failure?.kind == .crashed)
+        #expect(session.failure?.message == "The extension used too much memory and was stopped.")
+        #expect(session.failure?.details == "It held 1029 MB.")
+        #expect(session.isStopping)
+    }
+
     @Test func aPongClearsTheWaitAndAnUnresponsiveFailure() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         session.heartbeat(now: start)
