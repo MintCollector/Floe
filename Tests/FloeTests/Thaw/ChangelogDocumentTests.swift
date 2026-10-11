@@ -541,7 +541,8 @@ struct ChangelogDocumentShownReleasesTests {
         let newest = try #require(ChangelogDocument.displayReleases(in: document).first)
         #expect(newest.facts != nil)
         #expect(newest.version == "0.1.0")
-        #expect(newest.sections.map(\.title).contains("New: search"))
+        #expect(newest.sections.map(\.title).prefix(2) == ["New", "Known issues"])
+        #expect(newest.sections.first?.themes.compactMap(\.title).contains("Search") == true)
         #expect(newest.sections.allSatisfy { !$0.themes.isEmpty })
     }
 }
