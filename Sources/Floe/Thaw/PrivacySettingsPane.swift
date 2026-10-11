@@ -56,7 +56,7 @@ struct PrivacySettingsPane: View {
                 }
                 Toggle(isOn: $settings.indexesFileNames) {
                     Text("Fast file search")
-                    Text("Floe keeps the names of your files in memory, so file search answers as you type. macOS will ask about Desktop, Documents and Downloads.")
+                    Text("Floe keeps the names of your files, in memory and in a file on this Mac, so file search answers as you type. Switching this off deletes the file. macOS will ask about Desktop, Documents and Downloads.")
                 }
                 if settings.indexesFileNames, let line = fileIndex.state?.line {
                     LabeledContent("File names held") { Text(line) }

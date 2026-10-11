@@ -437,7 +437,7 @@ fn the_c_functions_build_search_and_free() {
     unsafe {
         let index = floe_index_new();
         assert_eq!(floe_index_count(index), 0);
-        let built = floe_index_build(index, root.as_ptr(), name_pointers.as_ptr(), 1, suffix_pointers.as_ptr(), 1);
+        let built = floe_index_build(index, root.as_ptr(), name_pointers.as_ptr(), 1, suffix_pointers.as_ptr(), 1, 0);
         assert_eq!(built, 3);
         assert_eq!(floe_index_count(index), 3);
         assert!(floe_index_byte_size(index) > 0);
@@ -465,7 +465,7 @@ fn the_c_functions_build_search_and_free() {
         assert_eq!(floe_index_count(index), 4);
 
         assert!(floe_index_search(index, ptr::null(), 10, &mut length).is_null());
-        assert_eq!(floe_index_build(index, ptr::null(), ptr::null(), 0, ptr::null(), 0), -1);
+        assert_eq!(floe_index_build(index, ptr::null(), ptr::null(), 0, ptr::null(), 0, 0), -1);
         assert_eq!(floe_index_count(ptr::null()), 0);
         floe_index_block_free(ptr::null_mut(), 0);
         floe_index_free(index);
@@ -510,6 +510,121 @@ fn best_of(runs: usize, mut work: impl FnMut()) -> Duration {
 }
 
 /// Not a test of anything: prints how the index does on the real home folder. It reads names and nothing else.
+#[test]
+fn a_walk_to_a_depth_lists_that_many_levels_and_a_whole_walk_replaces_it() {
+    let scratch = Scratch::new();
+    scratch.file("top.txt");
+    scratch.file("one/second.txt");
+    scratch.file("one/two/third.txt");
+    scratch.file("one/two/three/fourth.txt");
+    let index = FileIndex::new();
+
+    assert_eq!(index.build_to(scratch.root(), rules(), Some(2)), 4, "top.txt, one, and the two entries in one");
+    assert_eq!(found(&index, &scratch, "second"), ["one/second.txt"]);
+    assert_eq!(found(&index, &scratch, "two"), ["one/two"], "a folder at the last level is listed and not read");
+    assert!(found(&index, &scratch, "third").is_empty());
+
+    assert_eq!(index.build(scratch.root(), rules()), 7);
+    assert_eq!(found(&index, &scratch, "fourth"), ["one/two/three/fourth.txt"]);
+}
+
+/// Where a test saves an index: a file of its own beside the scratch folders.
+fn saved_file(scratch: &Scratch) -> String {
+    format!("{}.index", scratch.root())
+}
+
+#[test]
+fn a_saved_index_comes_back_with_the_same_names_and_keeps_following_the_disk() {
+    let scratch = Scratch::new();
+    scratch.file("docs/report.txt");
+    scratch.file("docs/deep/notes.md");
+    scratch.folder("Photos.photoslibrary/inside");
+    let file = saved_file(&scratch);
+    assert!(built(&scratch).save(&file));
+
+    let loaded = FileIndex::new();
+    assert_eq!(loaded.load(&file, scratch.root(), rules()), Some(5));
+    assert_eq!(found(&loaded, &scratch, "report"), ["docs/report.txt"]);
+    assert_eq!(found(&loaded, &scratch, "deep/notes"), ["docs/deep/notes.md"]);
+    assert!(loaded.read().tree.search("photos", 10)[0].is_folder);
+
+    scratch.file("docs/later.txt");
+    loaded.rescan(&scratch.path("docs"), false);
+    assert_eq!(found(&loaded, &scratch, "later"), ["docs/later.txt"]);
+    assert_eq!(count(&loaded), 6);
+    let _ = fs::remove_file(file);
+}
+
+#[test]
+fn what_was_removed_before_saving_is_not_in_the_saved_index() {
+    let scratch = Scratch::new();
+    scratch.file("keep/one.txt");
+    scratch.file("gone/two.txt");
+    let index = built(&scratch);
+    fs::remove_dir_all(scratch.path("gone")).unwrap();
+    index.rescan(scratch.root(), false);
+    let file = saved_file(&scratch);
+    assert!(index.save(&file));
+
+    let loaded = FileIndex::new();
+    assert_eq!(loaded.load(&file, scratch.root(), rules()), Some(2));
+    assert!(found(&loaded, &scratch, "two").is_empty());
+    assert_eq!(loaded.read().tree.dead, 0, "the saved file holds no room for what was removed");
+    let _ = fs::remove_file(file);
+}
+
+#[test]
+fn a_saved_index_is_refused_for_another_folder_or_other_rules() {
+    let scratch = Scratch::new();
+    scratch.file("one.txt");
+    let file = saved_file(&scratch);
+    assert!(built(&scratch).save(&file));
+
+    let loaded = FileIndex::new();
+    assert_eq!(loaded.load(&file, "/somewhere/else", rules()), None);
+    let other = Rules { excluded_names: vec!["node_modules".into()], ..rules() };
+    assert_eq!(loaded.load(&file, scratch.root(), other), None);
+    assert_eq!(count(&loaded), 0, "a refused file leaves the index as it was");
+    assert_eq!(loaded.load(&file, scratch.root(), rules()), Some(1));
+    let _ = fs::remove_file(file);
+}
+
+#[test]
+fn a_file_that_is_cut_short_damaged_or_something_else_is_refused() {
+    let scratch = Scratch::new();
+    scratch.file("docs/one.txt");
+    scratch.file("docs/two.txt");
+    let file = saved_file(&scratch);
+    assert!(built(&scratch).save(&file));
+    let whole = fs::read(&file).unwrap();
+    let loaded = FileIndex::new();
+
+    for length in 0..whole.len() {
+        fs::write(&file, &whole[..length]).unwrap();
+        assert_eq!(loaded.load(&file, scratch.root(), rules()), None, "cut to {length} bytes");
+    }
+    // Every byte in turn: a damaged file is refused or read as names, and never brings the index down.
+    for place in 0..whole.len() {
+        let mut damaged = whole.clone();
+        damaged[place] ^= 0xFF;
+        fs::write(&file, &damaged).unwrap();
+        if loaded.load(&file, scratch.root(), rules()).is_some() {
+            let _ = loaded.read().tree.search("o", 10);
+        }
+    }
+    fs::write(&file, "not an index").unwrap();
+    assert_eq!(loaded.load(&file, scratch.root(), rules()), None);
+    assert_eq!(loaded.load(&scratch.path("missing.index"), scratch.root(), rules()), None);
+    let _ = fs::remove_file(file);
+}
+
+#[test]
+fn an_index_that_was_never_built_saves_nothing() {
+    let scratch = Scratch::new();
+    assert!(!FileIndex::new().save(&saved_file(&scratch)));
+    assert!(!built(&scratch).save(&scratch.path("no/such/folder/saved.index")));
+}
+
 /// `cargo test --release -- --ignored --nocapture measures_the_home_folder`
 #[test]
 #[ignore]
@@ -529,6 +644,12 @@ fn measures_the_home_folder() {
     println!("second build: {:?}", best_of(2, || {
         index.build(&home, rules());
     }));
+    let file = std::env::temp_dir().join(format!("floe-index-{}.measure", std::process::id()));
+    let file = file.to_str().unwrap();
+    println!("save: {:?}", best_of(3, || assert!(index.save(file))));
+    println!("saved file: {:.1} MB", fs::metadata(file).unwrap().len() as f64 / 1e6);
+    println!("load: {:?}", best_of(3, || assert!(FileIndex::new().load(file, &home, rules()).is_some())));
+    let _ = fs::remove_file(file);
     let tree = &index.read().tree;
     println!("approximate memory: {:.1} MB ({:.1} MB of names)", tree.byte_size() as f64 / 1e6, tree.names.len() as f64 / 1e6);
     // A folder macOS would not let this process read shows up here with nothing in it.

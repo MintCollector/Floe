@@ -1,7 +1,7 @@
 //! The names of the files under one folder, held in memory and matched fuzzily.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::{CStr, OsStr};
 use std::os::raw::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -67,8 +67,9 @@ struct Tree {
     root: String,
     entries: Vec<Entry>,
     names: Vec<u8>,
-    /// The entries directly inside each folder that has any.
-    children: HashMap<u32, Vec<u32>>,
+    /// The entries directly inside each folder that has any. A tree and not a hash table, whose one pointer
+    /// into the middle of its memory makes `leaks` report every list in it as lost.
+    children: BTreeMap<u32, Vec<u32>>,
     dead: usize,
 }
 
@@ -151,9 +152,9 @@ impl Pending {
     }
 }
 
-/// One walking thread: reads folders until none are left. Symlinks are listed and never followed,
-/// and a folder that cannot be read is listed with nothing in it.
-fn collect(root: &str, rules: &Rules, pending: &Pending) -> Found {
+/// One walking thread: reads folders until none are left, or only those above `depth` levels down. Symlinks
+/// are listed and never followed, and a folder that cannot be read is listed with nothing in it.
+fn collect(root: &str, rules: &Rules, depth: Option<usize>, pending: &Pending) -> Found {
     lower_priority();
     let mut found = Found::default();
     let mut inside = Vec::new();
@@ -165,13 +166,16 @@ fn collect(root: &str, rules: &Rules, pending: &Pending) -> Found {
             path.push('/');
             path.push_str(&folder);
         }
+        // What is in this folder is this many levels down; its folders are read only when more levels are wanted.
+        let level = if folder.is_empty() { 1 } else { folder.split('/').count() + 1 };
+        let reads_inside = depth.is_none_or(|depth| level < depth);
         for entry in std::fs::read_dir(&path).into_iter().flatten().flatten() {
             let is_dir = entry.file_type().is_ok_and(|kind| kind.is_dir());
             let name = entry.file_name();
             let kind = rules.classify(&name, is_dir);
             let (Some(name), true) = (name.to_str(), kind != Kind::Skip) else { continue };
             found.add(&folder, name, is_dir);
-            if kind == Kind::Folder {
+            if kind == Kind::Folder && reads_inside {
                 inside.push(if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") });
             }
         }
@@ -197,15 +201,16 @@ fn lower_priority() {
 impl Tree {
     fn empty(root: &str) -> Self {
         let top = Entry { parent: 0, name_start: 0, name_len: 0, depth: 0, flags: DIR };
-        Self { root: root.to_owned(), entries: vec![top], names: Vec::new(), children: HashMap::new(), dead: 0 }
+        Self { root: root.to_owned(), entries: vec![top], names: Vec::new(), children: BTreeMap::new(), dead: 0 }
     }
 
-    /// Everything under `root` that the rules keep. A root that is missing or unreadable gives an empty tree.
-    fn walk(root: &str, rules: &Rules, threads: usize) -> Self {
+    /// Everything under `root` that the rules keep, or its first `depth` levels. A root that is missing or
+    /// unreadable gives an empty tree.
+    fn walk(root: &str, rules: &Rules, threads: usize, depth: Option<usize>) -> Self {
         // The root is the one folder to read at first: the empty path under itself.
         let pending = Pending { state: Mutex::new((vec![String::new()], 0)), changed: Condvar::new() };
         let found: Vec<Found> = std::thread::scope(|scope| {
-            let walkers: Vec<_> = (0..threads.max(1)).map(|_| scope.spawn(|| collect(root, rules, &pending))).collect();
+            let walkers: Vec<_> = (0..threads.max(1)).map(|_| scope.spawn(|| collect(root, rules, depth, &pending))).collect();
             walkers.into_iter().filter_map(|walker| walker.join().ok()).collect()
         });
         let mut listings: Vec<(&Found, &Listing)> = found.iter().flat_map(|chunk| chunk.folders.iter().map(move |listing| (chunk, listing))).collect();
@@ -234,7 +239,6 @@ impl Tree {
         }
         tree.names.shrink_to_fit();
         tree.children.values_mut().for_each(Vec::shrink_to_fit);
-        tree.children.shrink_to_fit();
         tree
     }
 
@@ -244,7 +248,7 @@ impl Tree {
 
     fn byte_size(&self) -> usize {
         let lists: usize = self.children.values().map(|list| list.capacity() * 4).sum();
-        let table = self.children.capacity() * (std::mem::size_of::<(u32, Vec<u32>)>() + 1);
+        let table = self.children.len() * std::mem::size_of::<(u32, Vec<u32>)>();
         self.entries.capacity() * std::mem::size_of::<Entry>() + self.names.capacity() + lists + table + self.root.len()
     }
 
@@ -314,18 +318,7 @@ impl Tree {
         if self.dead < 4096 || self.dead < self.count() / 2 {
             return;
         }
-        let mut fresh = Self::empty(&self.root);
-        fresh.entries.reserve_exact(self.count());
-        fresh.names.reserve_exact(self.names.len());
-        let mut moved = vec![0u32; self.entries.len()];
-        // A folder always comes before what is in it, so its new place is known by then.
-        for (id, entry) in self.entries.iter().enumerate().skip(1) {
-            if entry.flags & DEAD == 0 {
-                moved[id] = fresh.push(moved[entry.parent as usize], self.name(entry), entry.flags & DIR != 0);
-            }
-        }
-        fresh.names.shrink_to_fit();
-        *self = fresh;
+        *self = self.compacted();
     }
 
     fn child(&self, folder: u32, name: &str) -> Option<u32> {
@@ -489,9 +482,15 @@ impl FileIndex {
         self.state.write().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    #[cfg(test)]
     fn build(&self, root: &str, rules: Rules) -> usize {
+        self.build_to(root, rules, None)
+    }
+
+    /// With a depth, only that many levels are listed: a first answer while the whole walk is still to come.
+    fn build_to(&self, root: &str, rules: Rules, depth: Option<usize>) -> usize {
         let _writing = self.writer.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let tree = Tree::walk(without_trailing_slash(root), &rules, walk_threads());
+        let tree = Tree::walk(without_trailing_slash(root), &rules, walk_threads(), depth);
         let count = tree.count();
         *self.write() = State { tree, rules };
         count
@@ -508,7 +507,7 @@ impl FileIndex {
             let walked: Vec<Option<Tree>> = change
                 .added
                 .iter()
-                .map(|(name, kind)| (*kind == Kind::Folder).then(|| Tree::walk(&format!("{folder}/{name}"), &state.rules, 2)))
+                .map(|(name, kind)| (*kind == Kind::Folder).then(|| Tree::walk(&format!("{folder}/{name}"), &state.rules, 2, None)))
                 .collect();
             (change, walked)
         };
@@ -636,6 +635,13 @@ unsafe fn texts(list: *const *const c_char, count: usize) -> Vec<String> {
     slice::from_raw_parts(list, count).iter().filter_map(|item| text(*item)).map(str::to_owned).collect()
 }
 
+unsafe fn rules(names: *const *const c_char, name_count: usize, suffixes: *const *const c_char, suffix_count: usize) -> Rules {
+    Rules {
+        excluded_names: texts(names, name_count),
+        package_suffixes: texts(suffixes, suffix_count).iter().map(|suffix| suffix.to_ascii_lowercase()).collect(),
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn floe_index_new() -> *mut FileIndex {
     catch_unwind(|| Box::into_raw(Box::new(FileIndex::new()))).unwrap_or(ptr::null_mut())
@@ -648,7 +654,8 @@ pub unsafe extern "C" fn floe_index_free(index: *mut FileIndex) {
     }
 }
 
-/// Walks `root` and replaces what the index holds. Returns the number of entries, or -1 when it could not run.
+/// Walks `root`, or its first `depth` levels when that is not 0, and replaces what the index holds.
+/// Returns the number of entries, or -1 when it could not run.
 #[no_mangle]
 pub unsafe extern "C" fn floe_index_build(
     index: *const FileIndex,
@@ -657,14 +664,12 @@ pub unsafe extern "C" fn floe_index_build(
     excluded_name_count: usize,
     package_suffixes: *const *const c_char,
     package_suffix_count: usize,
+    depth: usize,
 ) -> i64 {
     catch_unwind(AssertUnwindSafe(|| {
         let (Some(index), Some(root)) = (index.as_ref(), text(root)) else { return -1 };
-        let rules = Rules {
-            excluded_names: texts(excluded_names, excluded_name_count),
-            package_suffixes: texts(package_suffixes, package_suffix_count).iter().map(|suffix| suffix.to_ascii_lowercase()).collect(),
-        };
-        index.build(root, rules) as i64
+        let rules = rules(excluded_names, excluded_name_count, package_suffixes, package_suffix_count);
+        index.build_to(root, rules, (depth > 0).then_some(depth)) as i64
     }))
     .unwrap_or(-1)
 }
@@ -676,6 +681,36 @@ pub unsafe extern "C" fn floe_index_rescan(index: *const FileIndex, path: *const
             index.rescan(path, recursive);
         }
     }));
+}
+
+/// Writes the index to a file. False for an index that was never built, or a file that could not be written.
+#[no_mangle]
+pub unsafe extern "C" fn floe_index_save(index: *const FileIndex, path: *const c_char) -> bool {
+    catch_unwind(AssertUnwindSafe(|| match (index.as_ref(), text(path)) {
+        (Some(index), Some(path)) => index.save(path),
+        _ => false,
+    }))
+    .unwrap_or(false)
+}
+
+/// Replaces what the index holds with a saved one. Returns the number of entries, or -1 for a file that is
+/// missing, damaged, or was saved for another root or other rules; the index is then left as it was.
+#[no_mangle]
+pub unsafe extern "C" fn floe_index_load(
+    index: *const FileIndex,
+    path: *const c_char,
+    root: *const c_char,
+    excluded_names: *const *const c_char,
+    excluded_name_count: usize,
+    package_suffixes: *const *const c_char,
+    package_suffix_count: usize,
+) -> i64 {
+    catch_unwind(AssertUnwindSafe(|| {
+        let (Some(index), Some(path), Some(root)) = (index.as_ref(), text(path), text(root)) else { return -1 };
+        let rules = rules(excluded_names, excluded_name_count, package_suffixes, package_suffix_count);
+        index.load(path, root, rules).map_or(-1, |count| count as i64)
+    }))
+    .unwrap_or(-1)
 }
 
 /// The best `limit` matches as one block (see `encode`), its length in `length`. Freed with `floe_index_block_free`.
@@ -715,5 +750,6 @@ pub unsafe extern "C" fn floe_index_byte_size(index: *const FileIndex) -> usize 
     catch_unwind(AssertUnwindSafe(|| index.as_ref().map_or(0, |index| index.read().tree.byte_size()))).unwrap_or(0)
 }
 
+mod saved;
 #[cfg(test)]
 mod tests;

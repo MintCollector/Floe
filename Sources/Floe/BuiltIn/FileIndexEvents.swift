@@ -47,9 +47,18 @@ nonisolated enum FileIndexEvents {
         ["Library", ".Trash", ".cache", ".npm", ".cargo", ".rustup"].map { root + "/" + $0 }
     }
 
-    /// Starts a stream over `root`. The returned closure stops it; it does nothing when the stream could not start.
-    static let watch: @Sendable (String, @escaping @Sendable ([FileIndexChange]) -> Void) -> (@Sendable () -> Void) = { root, deliver in
-        let stream = Stream(root: root, deliver: deliver)
+    /// What names the numbering of a folder's events. A saved event number is only good on the same one:
+    /// a disk that was erased, or another disk at the same path, counts from somewhere else.
+    static func volume(of root: String) -> String? {
+        var info = stat()
+        guard stat(root, &info) == 0, let identifier = FSEventsCopyUUIDForDevice(info.st_dev) else { return nil }
+        return CFUUIDCreateString(nil, identifier) as String?
+    }
+
+    /// Starts a stream over `root`, from now on or with everything since an earlier event first. Each report comes
+    /// with the event it ends at. The returned closure stops the stream; it does nothing when none could start.
+    static let watch: @Sendable (String, UInt64?, @escaping @Sendable ([FileIndexChange], UInt64) -> Void) -> (@Sendable () -> Void) = { root, since, deliver in
+        let stream = Stream(root: root, since: since, deliver: deliver)
         guard stream.start() else { return { /* nothing was started */ } }
         return { stream.stop() }
     }
@@ -57,12 +66,14 @@ nonisolated enum FileIndexEvents {
     /// The stream holds this, so a callback in flight never finds it gone. `events` is only touched on `queue` once started.
     private final class Stream: @unchecked Sendable {
         private let root: String
-        private let deliver: @Sendable ([FileIndexChange]) -> Void
+        private let since: UInt64?
+        private let deliver: @Sendable ([FileIndexChange], UInt64) -> Void
         private let queue = DispatchQueue(label: "floe.file-index-events", qos: .utility)
         private var events: FSEventStreamRef?
 
-        init(root: String, deliver: @escaping @Sendable ([FileIndexChange]) -> Void) {
+        init(root: String, since: UInt64?, deliver: @escaping @Sendable ([FileIndexChange], UInt64) -> Void) {
             self.root = root
+            self.since = since
             self.deliver = deliver
         }
 
@@ -83,7 +94,7 @@ nonisolated enum FileIndexEvents {
             )
             let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagWatchRoot)
             guard let stream = FSEventStreamCreate(
-                nil, Self.callback, &context, [root] as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), FileIndexEvents.latency, flags
+                nil, Self.callback, &context, [root] as CFArray, since ?? FSEventStreamEventId(kFSEventStreamEventIdSinceNow), FileIndexEvents.latency, flags
             ) else { return false }
             events = stream
             FSEventStreamSetExclusionPaths(stream, FileIndexEvents.excludedPaths(under: root) as CFArray)
@@ -107,13 +118,13 @@ nonisolated enum FileIndexEvents {
             }
         }
 
-        private static let callback: FSEventStreamCallback = { _, info, count, eventPaths, eventFlags, _ in
-            guard let info else { return }
+        private static let callback: FSEventStreamCallback = { _, info, count, eventPaths, eventFlags, eventIDs in
+            guard let info, count > 0 else { return }
             let stream = Unmanaged<Stream>.fromOpaque(info).takeUnretainedValue()
             let paths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue() as? [String] ?? []
             let changes = FileIndexEvents.changes(paths: paths, flags: Array(UnsafeBufferPointer(start: eventFlags, count: count)))
             if !changes.isEmpty, stream.events != nil {
-                stream.deliver(changes)
+                stream.deliver(changes, eventIDs[count - 1])
             }
         }
     }

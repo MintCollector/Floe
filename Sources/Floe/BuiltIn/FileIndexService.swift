@@ -6,6 +6,7 @@
 //  Licensed under the GNU AGPLv3
 
 import Combine
+import CoreServices
 import FendCore
 import Foundation
 import Synchronization
@@ -24,13 +25,37 @@ final nonisolated class FileIndexService: Sendable {
     struct Environment: Sendable {
         /// The folder to index, as file system events name it.
         var root: @Sendable () -> String = { DirectoryWatcher.real(NSHomeDirectory()) }
-        /// Starts reporting changes under a folder, and returns what stops the reports.
-        var watch: @Sendable (String, @escaping @Sendable ([FileIndexChange]) -> Void) -> (@Sendable () -> Void) = FileIndexEvents.watch
+        /// Starts reporting changes under a folder, from now on or since an earlier event, and returns what stops the reports.
+        var watch: @Sendable (String, UInt64?, @escaping @Sendable ([FileIndexChange], UInt64) -> Void) -> (@Sendable () -> Void) = FileIndexEvents.watch
+        /// Where the index is kept between launches. Nil keeps it in memory only, and every launch walks the folder.
+        var saved: URL?
+        /// What numbers the folder's events: a saved index is only picked up on the same one.
+        var volume: @Sendable (String) -> String? = FileIndexEvents.volume(of:)
+        /// The newest event there is, which is where a walk that starts now is safe to be picked up from.
+        var currentEvent: @Sendable () -> UInt64 = { FSEventsGetCurrentEventId() }
+        /// How long after the last change the index is saved again.
+        var saveDelay: TimeInterval = 10
         /// When a file was last opened, for the order of the matches. Nil for one not opened lately.
         var lastUsed: @Sendable (String) -> Date? = RecentFileUse.date(for:)
     }
 
-    static let shared = FileIndexService()
+    static let shared = FileIndexService(environment: Environment(saved: savedFile))
+
+    /// A cache: macOS may clear it, and the next launch then walks the folder again.
+    static let savedFile = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("Floe/FileNames.index")
+
+    /// How deep the first, quick walk goes: Desktop, Documents and Downloads, and two levels inside them.
+    static let firstLevels = 3
+
+    /// What goes with a saved index: the event it is good up to, and the volume that numbered it.
+    struct Stamp: Codable, Equatable {
+        var event: UInt64
+        var volume: String
+    }
+
+    static func stampFile(for saved: URL) -> URL {
+        saved.appendingPathExtension("stamp")
+    }
 
     /// Folders that hold nothing a person looks for by name. Names that start with a dot are left out without being listed.
     static let excludedNames = ["Library", "node_modules", ".git", ".Trash", ".build", "target", "DerivedData", ".cache", "Pods", ".npm", ".cargo", ".rustup"]
@@ -43,6 +68,10 @@ final nonisolated class FileIndexService: Sendable {
         let root: String
         let stop: @Sendable () -> Void
         var isReady = false
+        /// The last event the index holds the changes of.
+        var event: UInt64
+        /// Counts the changes, so only the save after the last one is carried out.
+        var saves = 0
     }
 
     private let environment: Environment
@@ -83,6 +112,7 @@ final nonisolated class FileIndexService: Sendable {
                 running?.stop()
                 running = nil
             }
+            removeSaved()
             publish()
         }
     }
@@ -90,42 +120,95 @@ final nonisolated class FileIndexService: Sendable {
     private func start() {
         guard let index = try? FileIndex() else { return }
         let root = environment.root()
-        let changed: @Sendable ([FileIndexChange]) -> Void = { [weak self] changes in
+        let changed: @Sendable ([FileIndexChange], UInt64) -> Void = { [weak self] changes, event in
             guard let self else { return }
-            work.async { self.apply(changes, to: index) }
+            work.async { self.apply(changes, upTo: event, to: index) }
         }
+        let stamp = stamp(for: root)
         let started = running.withLock { running in
             guard running == nil else { return false }
-            // Watching starts before the walk, so what changes during it is read again afterwards.
-            running = Running(index: index, root: root, stop: environment.watch(root, changed))
+            // Watching starts before the walk or the reading, so what changes meanwhile is read again afterwards.
+            let event = stamp?.event ?? environment.currentEvent()
+            running = Running(index: index, root: root, stop: environment.watch(root, stamp?.event, changed), event: event)
             return true
         }
         guard started else { return }
         publish()
-        work.async { [weak self] in self?.build(index, root: root) }
+        work.async { [weak self] in
+            guard let self, isCurrent(index) else { return }
+            if stamp != nil, let saved = environment.saved, index.load(from: saved, root: root, excludedNames: Self.excludedNames, packageSuffixes: Self.packageSuffixes) {
+                setReady(true, for: index)
+            } else {
+                build(index, root: root)
+            }
+        }
+    }
+
+    /// What was saved with the index, when it is for the volume the folder is on now.
+    private func stamp(for root: String) -> Stamp? {
+        guard let saved = environment.saved, let data = try? Data(contentsOf: Self.stampFile(for: saved)),
+              let stamp = try? JSONDecoder().decode(Stamp.self, from: data), stamp.volume == environment.volume(root)
+        else { return nil }
+        return stamp
     }
 
     private func build(_ index: FileIndex, root: String) {
         guard isCurrent(index) else { return }
-        index.build(root: root, excludedNames: Self.excludedNames, packageSuffixes: Self.packageSuffixes)
+        // The top folders are read in a few milliseconds and answer searches while the whole walk runs.
+        index.build(root: root, excludedNames: Self.excludedNames, packageSuffixes: Self.packageSuffixes, levels: Self.firstLevels)
         setReady(true, for: index)
+        guard isCurrent(index) else { return }
+        index.build(root: root, excludedNames: Self.excludedNames, packageSuffixes: Self.packageSuffixes)
+        publish()
+        save(index)
     }
 
-    private func apply(_ changes: [FileIndexChange], to index: FileIndex) {
+    private func apply(_ changes: [FileIndexChange], upTo event: UInt64, to index: FileIndex) {
         guard isCurrent(index), let root = running.withLock({ $0?.root }) else { return }
         if changes.contains(.everything) {
             setReady(false, for: index)
             build(index, root: root)
-            return
-        }
-        for change in changes {
-            switch change {
-            case let .folder(path): index.rescan(path, recursive: false)
-            case let .subtree(path): index.rescan(path, recursive: true)
-            case .everything: break
+        } else {
+            for change in changes {
+                switch change {
+                case let .folder(path): index.rescan(path, recursive: false)
+                case let .subtree(path): index.rescan(path, recursive: true)
+                case .everything: break
+                }
             }
+            publish()
         }
-        publish()
+        let turn = running.withLock { running -> Int? in
+            guard var now = running, now.index === index else { return nil }
+            now.event = max(now.event, event)
+            now.saves += 1
+            running = now
+            return now.saves
+        }
+        guard let turn else { return }
+        guard environment.saveDelay > 0 else { return save(index) }
+        work.asyncAfter(deadline: .now() + environment.saveDelay) { [weak self] in
+            guard let self, running.withLock({ $0?.saves }) == turn else { return }
+            save(index)
+        }
+    }
+
+    /// The index first and its stamp after: a launch that finds a newer index than its stamp reads a few events twice.
+    private func save(_ index: FileIndex) {
+        guard let saved = environment.saved,
+              let now = running.withLock({ $0?.index === index ? $0 : nil }),
+              let volume = environment.volume(now.root)
+        else { return }
+        try? FileManager.default.createDirectory(at: saved.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard index.save(to: saved), let stamp = try? JSONEncoder().encode(Stamp(event: now.event, volume: volume)) else { return }
+        try? stamp.write(to: Self.stampFile(for: saved), options: .atomic)
+    }
+
+    /// The names of the user's files do not outlive the switch.
+    private func removeSaved() {
+        guard let saved = environment.saved else { return }
+        try? FileManager.default.removeItem(at: saved)
+        try? FileManager.default.removeItem(at: Self.stampFile(for: saved))
     }
 
     /// False once the switch went off, or went off and on again, since the work was queued.

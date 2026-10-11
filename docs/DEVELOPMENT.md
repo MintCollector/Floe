@@ -57,7 +57,8 @@ pair as its sender. The welcome window at first launch is still the launcher's.
   - `Search`: ranking and fuzzy matching, the command lookup the App Intents use, and `SearchProviders` (below).
   - `BuiltIn`: what Floe does itself: the calculator, system commands and toggles, System Settings panes, emoji,
     clipboard history, snippets and their expander, quicklinks, the calendar, the file search and its index of file
-    names (`FileIndexService.swift`; the index itself is Rust, in `Vendor/FendCore/rust/src/index.rs`), browser tabs,
+    names (`FileIndexService.swift`; the index itself is Rust, in `Vendor/FendCore/rust/src/index.rs`, and is saved
+    to `~/Library/Caches/Floe` so a later launch reads it back and asks FSEvents only for what changed since), browser tabs,
     menu bar items, script commands and Thaw's actions, with the AppleScript runner and the selection and pasteboard
     helpers.
   - `AI`: Ask AI and the sources that answer a prompt. An answer can be followed up: `AskAIModel` keeps the turns of

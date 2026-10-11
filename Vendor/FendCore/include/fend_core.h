@@ -128,18 +128,35 @@ void floe_index_free(FloeFileIndex* _Nullable index);
 
 /// Walk `root` and replace what the index holds. Folders named in `excluded_names` are left out, as is every
 /// name that starts with a dot; a folder whose name ends in one of `package_suffixes` is listed and not entered.
-/// Blocks until the walk is done. Returns the number of entries, or -1 on failure.
+/// With a `depth` other than 0 only that many levels are listed. Blocks until the walk is done. Returns the
+/// number of entries, or -1 on failure.
 int64_t floe_index_build(
     const FloeFileIndex* _Nonnull index,
     const char* _Nonnull root,
     const char* _Nullable const* _Nullable excluded_names,
     size_t excluded_name_count,
     const char* _Nullable const* _Nullable package_suffixes,
-    size_t package_suffix_count
+    size_t package_suffix_count,
+    size_t depth
 );
 
 /// Bring one folder in line with the disk: what is directly in it, or with `recursive` everything under it.
 void floe_index_rescan(const FloeFileIndex* _Nonnull index, const char* _Nonnull path, bool recursive);
+
+/// Write the index to a file, replacing it whole. False for an index that was never built, or on failure.
+bool floe_index_save(const FloeFileIndex* _Nonnull index, const char* _Nonnull path);
+
+/// Replace what the index holds with a saved one. Returns the number of entries, or -1 for a file that is
+/// missing, damaged, or was saved for another root or other rules; the index is then left as it was.
+int64_t floe_index_load(
+    const FloeFileIndex* _Nonnull index,
+    const char* _Nonnull path,
+    const char* _Nonnull root,
+    const char* _Nullable const* _Nullable excluded_names,
+    size_t excluded_name_count,
+    const char* _Nullable const* _Nullable package_suffixes,
+    size_t package_suffix_count
+);
 
 /// The best `limit` matches for `query`, as one block of `*length` bytes to free with `floe_index_block_free`.
 /// Numbers are little-endian uint32 and not aligned: the count of hits, then for each hit its score, one byte

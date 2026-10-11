@@ -15,13 +15,18 @@ import Testing
 /// A folder of its own in the temporary folder, and file system events that only a test sends.
 private final class IndexFixture: Sendable {
     let root: URL
-    private let deliver = Mutex<(@Sendable ([FileIndexChange]) -> Void)?>(nil)
+    /// Where a service that saves keeps its index: beside the folder, never in it.
+    let saved: URL
+    private let deliver = Mutex<(@Sendable ([FileIndexChange], UInt64) -> Void)?>(nil)
     private let stops = Mutex(0)
+    private let asked = Mutex<[UInt64?]>([])
+    private let volumeName = Mutex("volume-a")
 
     init(files: [String]) throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("floe-index-service-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         root = URL(fileURLWithPath: DirectoryWatcher.real(folder.path))
+        saved = root.appendingPathExtension("index")
         for file in files {
             try add(file)
         }
@@ -29,6 +34,18 @@ private final class IndexFixture: Sendable {
 
     deinit {
         try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: saved)
+        try? FileManager.default.removeItem(at: FileIndexService.stampFile(for: saved))
+    }
+
+    /// The event each watch asked to start from, in the order the watches began. Nil is "from now on".
+    nonisolated var sinces: [UInt64?] {
+        asked.withLock(\.self)
+    }
+
+    nonisolated var volume: String {
+        get { volumeName.withLock(\.self) }
+        set { volumeName.withLock { $0 = newValue } }
     }
 
     var stopped: Int {
@@ -36,10 +53,21 @@ private final class IndexFixture: Sendable {
     }
 
     var environment: FileIndexService.Environment {
-        FileIndexService.Environment(root: { [root] in root.path }, watch: { [self] _, deliver in
+        FileIndexService.Environment(root: { [root] in root.path }, watch: { [self] _, since, deliver in
+            asked.withLock { $0.append(since) }
             self.deliver.withLock { $0 = deliver }
             return { self.stops.withLock { $0 += 1 } }
         })
+    }
+
+    /// The same, keeping the index in a file and saving it as soon as it changes.
+    var savingEnvironment: FileIndexService.Environment {
+        var environment = environment
+        environment.saved = saved
+        environment.volume = { [self] _ in volume }
+        environment.currentEvent = { 100 }
+        environment.saveDelay = 0
+        return environment
     }
 
     func add(_ file: String) throws {
@@ -53,8 +81,8 @@ private final class IndexFixture: Sendable {
     }
 
     /// Hands the service events as the stream would.
-    func send(_ changes: [FileIndexChange]) {
-        deliver.withLock(\.self)?(changes)
+    func send(_ changes: [FileIndexChange], event: UInt64 = 0) {
+        deliver.withLock(\.self)?(changes, event)
     }
 }
 
@@ -175,6 +203,94 @@ struct FileIndexServiceTests {
         service.set(on: true)
         await service.settled()
         #expect(service.state.names == 1)
+    }
+
+    @Test func theFirstWalkAnswersFromTheTopFoldersBeforeTheWholeWalkIsDone() async throws {
+        let fixture = try IndexFixture(files: ["top.txt", "a/b/c/d/deep.txt"])
+        let service = FileIndexService(environment: fixture.environment)
+        var told: [FileIndexService.State] = []
+        service.observe { told.append($0) }
+        service.set(on: true)
+        await service.settled()
+        await waitFor("both walks") { told.count == 4 }
+        #expect(told.prefix(2) == [.off, .building])
+        #expect(told.dropFirst(2).map(\.names) == [4, 6], "top.txt and the folders a, b and c first; then d and the file in it")
+    }
+
+    // MARK: The saved index
+
+    @Test func aLaterLaunchIsReadyFromTheSavedIndexAndReadsOnlyWhatChangedSince() async throws {
+        let fixture = try IndexFixture(files: ["docs/first.txt"])
+        let first = FileIndexService(environment: fixture.savingEnvironment)
+        first.set(on: true)
+        await first.settled()
+        #expect(fixture.sinces == [nil], "nothing is saved yet, so events are wanted from now on")
+        #expect(FileManager.default.fileExists(atPath: fixture.saved.path))
+
+        try fixture.add("docs/second.txt")
+        let second = FileIndexService(environment: fixture.savingEnvironment)
+        second.set(on: true)
+        await second.settled()
+        #expect(second.state.names == 2, "the folder and the file in it")
+        #expect(second.files(matching: "first")?.map(\.name) == ["first.txt"])
+        #expect(second.files(matching: "second")?.isEmpty == true, "the folder is not walked again")
+        #expect(fixture.sinces == [nil, 100], "the events since the walk began are asked for")
+
+        fixture.send([.folder(fixture.path("docs"))], event: 150)
+        await second.settled()
+        #expect(second.files(matching: "second")?.map(\.name) == ["second.txt"])
+
+        let third = FileIndexService(environment: fixture.savingEnvironment)
+        third.set(on: true)
+        await third.settled()
+        #expect(third.files(matching: "second")?.map(\.name) == ["second.txt"], "what the events brought in was saved too")
+        #expect(fixture.sinces.last == 150)
+    }
+
+    @Test func aSavedIndexFromAnotherVolumeOrADamagedOneIsWalkedAgain() async throws {
+        let fixture = try IndexFixture(files: ["early.txt"])
+        let first = FileIndexService(environment: fixture.savingEnvironment)
+        first.set(on: true)
+        await first.settled()
+
+        // Events are numbered per volume: on another one the saved number means nothing.
+        try fixture.add("late.txt")
+        fixture.volume = "volume-b"
+        let second = FileIndexService(environment: fixture.savingEnvironment)
+        second.set(on: true)
+        await second.settled()
+        #expect(second.files(matching: "late")?.map(\.name) == ["late.txt"])
+        #expect(fixture.sinces == [nil, nil])
+
+        try Data("not an index".utf8).write(to: fixture.saved)
+        try fixture.add("later.txt")
+        let third = FileIndexService(environment: fixture.savingEnvironment)
+        third.set(on: true)
+        await third.settled()
+        #expect(third.files(matching: "later")?.map(\.name) == ["later.txt"])
+        #expect(fixture.sinces.last == 100, "the stamp was good, so the events since are asked for even though the file was not")
+    }
+
+    @Test func switchingItOffRemovesTheSavedIndex() async throws {
+        let fixture = try IndexFixture(files: ["invoice.pdf"])
+        let service = FileIndexService(environment: fixture.savingEnvironment)
+        service.set(on: true)
+        await service.settled()
+        let stamp = FileIndexService.stampFile(for: fixture.saved)
+        #expect(FileManager.default.fileExists(atPath: fixture.saved.path))
+        #expect(FileManager.default.fileExists(atPath: stamp.path))
+
+        service.set(on: false)
+        #expect(!FileManager.default.fileExists(atPath: fixture.saved.path), "the names of the user's files do not outlive the switch")
+        #expect(!FileManager.default.fileExists(atPath: stamp.path))
+    }
+
+    @Test func withoutAFileToSaveToNothingIsWritten() async throws {
+        let fixture = try IndexFixture(files: ["a.txt"])
+        let service = FileIndexService(environment: fixture.environment)
+        service.set(on: true)
+        await service.settled()
+        #expect(!FileManager.default.fileExists(atPath: fixture.saved.path))
     }
 
     @Test func eachNewStateIsToldOnTheMainThread() async throws {

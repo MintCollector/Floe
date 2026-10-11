@@ -54,6 +54,26 @@ struct FileIndexTests {
         #expect(index.count == 2)
     }
 
+    @Test("A saved index is read back for the same root and rules, and for no other")
+    func testSaveAndLoad() throws {
+        let root = try scratch(["docs/report.txt", "docs/notes.md"])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.deletingLastPathComponent().appendingPathComponent(root.lastPathComponent + ".index")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let index = try FileIndex()
+        #expect(!index.save(to: file), "there is nothing to save before a build")
+        index.build(root: root.path, excludedNames: ["node_modules"])
+        #expect(index.save(to: file))
+
+        let loaded = try FileIndex()
+        #expect(!loaded.load(from: file, root: root.path, excludedNames: ["Library"]))
+        #expect(!loaded.load(from: file, root: "/somewhere/else", excludedNames: ["node_modules"]))
+        #expect(loaded.count == 0)
+        #expect(loaded.load(from: file, root: root.path, excludedNames: ["node_modules"]))
+        #expect(loaded.count == index.count)
+        #expect(loaded.search("report", limit: 5).map(\.path) == [root.path + "/docs/report.txt"])
+    }
+
     @Test("A missing root builds an empty index")
     func testMissingRoot() throws {
         let index = try FileIndex()

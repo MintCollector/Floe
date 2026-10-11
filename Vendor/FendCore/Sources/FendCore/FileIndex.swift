@@ -34,11 +34,12 @@ public final class FileIndex: @unchecked Sendable {
 
     /// Walks `root`, replaces what the index holds and returns the number of entries. Dot names and
     /// `excludedNames` are left out; a folder ending in one of `packageSuffixes` is listed and not entered.
+    /// With `levels`, only that many levels are listed: a first answer while the whole walk is still to come.
     @discardableResult
-    public func build(root: String, excludedNames: [String] = [], packageSuffixes: [String] = []) -> Int {
+    public func build(root: String, excludedNames: [String] = [], packageSuffixes: [String] = [], levels: Int? = nil) -> Int {
         Self.withCStrings(excludedNames) { names in
             Self.withCStrings(packageSuffixes) { suffixes in
-                max(0, Int(floe_index_build(pointer, root, names, names.count, suffixes, suffixes.count)))
+                max(0, Int(floe_index_build(pointer, root, names, names.count, suffixes, suffixes.count, max(0, levels ?? 0))))
             }
         }
     }
@@ -46,6 +47,22 @@ public final class FileIndex: @unchecked Sendable {
     /// Brings one folder in line with the disk: what is directly in it, or with `recursive` everything under it.
     public func rescan(_ path: String, recursive: Bool = false) {
         floe_index_rescan(pointer, path, recursive)
+    }
+
+    /// Writes the index to a file, replacing it whole. False for an index that was never built, or on failure.
+    @discardableResult
+    public func save(to file: URL) -> Bool {
+        floe_index_save(pointer, file.path)
+    }
+
+    /// Replaces what the index holds with a saved one. False, with the index left as it was, for a file that
+    /// is missing, damaged, or was saved for another root or other rules.
+    public func load(from file: URL, root: String, excludedNames: [String] = [], packageSuffixes: [String] = []) -> Bool {
+        Self.withCStrings(excludedNames) { names in
+            Self.withCStrings(packageSuffixes) { suffixes in
+                floe_index_load(pointer, file.path, root, names, names.count, suffixes, suffixes.count) >= 0
+            }
+        }
     }
 
     /// The best matches for a query, best first. The file name is matched; a query with a slash matches the path.
