@@ -75,15 +75,14 @@ final class TabSearchSource: SearchSource {
         }
     }
 
-    /// Asks the running browsers for their tabs, off the main thread. A browser that is not running is not asked.
+    /// Asks the running browsers for their tabs. A browser that is not running is not asked.
     private func read(_ completion: @escaping (BrowserTabs.Snapshot) -> Void) {
         waiting.append(completion)
         guard waiting.count == 1 else { return }
         let running = browsers.filter(isRunning)
-        let run = run
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let found = BrowserTabs.read(running, run: run)
-            DispatchQueue.main.async { [weak self] in self?.finish(found) }
+        Task(priority: .userInitiated) { [weak self, run] in
+            let found = await BrowserTabs.read(running, run: run)
+            self?.finish(found)
         }
     }
 

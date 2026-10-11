@@ -222,11 +222,11 @@ nonisolated enum BrowserTabs {
         var refused: [BrowserApp] = []
     }
 
-    /// Asks each browser in turn. Blocks until they have answered: call it off the main thread.
-    static func read(_ browsers: [BrowserApp], run: AppleScriptRunner) -> Snapshot {
+    /// Asks each browser in turn.
+    static func read(_ browsers: [BrowserApp], run: AppleScriptRunner) async -> Snapshot {
         var snapshot = Snapshot()
         for browser in browsers {
-            switch run(BrowserTabScripts.list(browser)) {
+            switch await run(BrowserTabScripts.list(browser)) {
             case let .text(output): snapshot.tabs += BrowserTabScripts.parse(output, browser: browser)
             case .refused: snapshot.refused.append(browser)
             case .failed: break
@@ -257,12 +257,11 @@ nonisolated enum BrowserTabs {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
 
-    /// Brings a tab forward off the main thread and reports back on it.
+    /// Brings a tab forward and reports back on the main thread.
     static func activate(_ tab: BrowserTab, run: @escaping AppleScriptRunner = AppleScript.run, completion: @escaping @MainActor (AppleScriptOutcome) -> Void) {
         let source = BrowserTabScripts.activate(tab)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let outcome = run(source)
-            DispatchQueue.main.async { completion(outcome) }
+        Task(priority: .userInitiated) {
+            await completion(run(source))
         }
     }
 }

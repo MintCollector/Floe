@@ -138,14 +138,14 @@ struct BrowserTabTests {
         #expect(BrowserTabScripts.list(.dia).contains("set floeKeys to id of tabs of floeWindow"))
     }
 
-    @Test func readingAsksEachBrowserInTurnAndKeepsTheOnesThatRefusedApart() {
+    @Test func readingAsksEachBrowserInTurnAndKeepsTheOnesThatRefusedApart() async {
         let scripts = FakeScripts { source in
             if source.contains("com.apple.Safari") {
                 return .text(listing([("1", "1", "Apple", "https://apple.com")]))
             }
             return source.contains("company.thebrowser.dia") ? .refused : .failed
         }
-        let snapshot = BrowserTabs.read(BrowserApp.all, run: scripts.run)
+        let snapshot = await BrowserTabs.read(BrowserApp.all, run: scripts.run)
         #expect(snapshot.tabs.map(\.title) == ["Apple"])
         #expect(snapshot.refused == [.dia], "a refusal is remembered; any other failure adds nothing")
         #expect(scripts.ran == BrowserApp.all.map(BrowserTabScripts.list))

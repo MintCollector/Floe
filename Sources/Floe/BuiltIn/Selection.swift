@@ -122,30 +122,30 @@ enum FinderSelection {
     /// Where a new folder would land: the front window's folder, or the desktop without a window.
     private static nonisolated let folderScript = #"tell application "Finder" to return POSIX path of (insertion location as alias)"#
 
-    static func current() throws -> [[String: String]] {
+    static func current() async throws -> [[String: String]] {
         guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder" else {
             throw SelectionError.finderNotFrontmost
         }
-        let paths = try paths(from: selectionScript)
+        let paths = try await paths(from: selectionScript)
         guard !paths.isEmpty else { throw SelectionError.finderEmpty }
         return paths.map { ["path": $0] }
     }
 
     /// What is selected, or the front window's folder when nothing is. Finder need not be frontmost.
-    static nonisolated func selectionOrFolder() throws -> [URL] {
-        let selected = try paths(from: selectionScript)
-        return try (selected.isEmpty ? paths(from: folderScript) : selected).map { URL(fileURLWithPath: $0) }
+    static nonisolated func selectionOrFolder() async throws -> [URL] {
+        let selected = try await paths(from: selectionScript)
+        return try await (selected.isEmpty ? paths(from: folderScript) : selected).map { URL(fileURLWithPath: $0) }
     }
 
     /// The front window's folder, or the desktop without a window. Finder need not be frontmost.
-    static func folder() throws -> URL {
-        guard let path = try paths(from: folderScript).first else { throw SelectionError.finderEmpty }
+    static func folder() async throws -> URL {
+        guard let path = try await paths(from: folderScript).first else { throw SelectionError.finderEmpty }
         return URL(fileURLWithPath: path)
     }
 
     /// The paths a script answers with, one per line.
-    private static nonisolated func paths(from script: String) throws -> [String] {
-        let execution = AppleScript.execute(script)
+    private static nonisolated func paths(from script: String) async throws -> [String] {
+        let execution = await AppleScript.execute(script)
         if execution.hasError {
             if execution.isRefused {
                 throw SelectionError.automationRefused

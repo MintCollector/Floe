@@ -26,7 +26,7 @@ struct ShellEnvironment {
 
     var hasProgram: (String) -> Bool = { ShellCommand.isProgram($0) }
     /// The folder of the Finder window in front.
-    var finderFolder: () throws -> URL = { try FinderSelection.folder() }
+    var finderFolder: () async throws -> URL = { try await FinderSelection.folder() }
 }
 
 /// Shell commands, their suggestions and running processes, as the launcher acts on them.
@@ -84,13 +84,15 @@ extension LauncherModel {
 
     /// Runs a command in the folder of the Finder window in front, and shows what it printed.
     func runInFinderFolder(_ command: String, terminal: ResolvedApp?) {
-        do {
-            let folder = try shell.finderFolder()
-            runShellCommand(command, terminal: terminal, showingOutput: true, in: folder)
-        } catch SelectionError.automationRefused {
-            SystemCommand.askForAutomation(toControl: "Finder")
-        } catch {
-            showHUD(error.localizedDescription)
+        Task {
+            do {
+                let folder = try await shell.finderFolder()
+                runShellCommand(command, terminal: terminal, showingOutput: true, in: folder)
+            } catch SelectionError.automationRefused {
+                SystemCommand.askForAutomation(toControl: "Finder")
+            } catch {
+                showHUD(error.localizedDescription)
+            }
         }
     }
 

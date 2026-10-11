@@ -179,7 +179,7 @@ nonisolated enum SSHConnection {
 
     @concurrent
     private static func run(_ source: String, with runner: AppleScriptRunner) async -> AppleScriptOutcome {
-        runner(source)
+        await runner(source)
     }
 }
 

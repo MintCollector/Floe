@@ -187,7 +187,7 @@ enum SystemCommand: String, CaseIterable, Identifiable {
     }
 
     private func runAppleScript(_ source: String) {
-        AppleScript.execute(source, qos: .utility) { execution in
+        AppleScript.execute(source, priority: .utility) { execution in
             guard execution.errorNumber != nil else { return }
             if execution.isRefused {
                 Self.askForAutomation(toControl: String(localized: "System Events and Finder", bundle: .floe, comment: "The names of two apps, as they stand in a sentence that asks for permission to control them."))

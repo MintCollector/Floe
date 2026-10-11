@@ -121,6 +121,6 @@ nonisolated enum MusicControls {
     /// Runs a script off the main thread and answers with how it ended.
     @concurrent
     static func run(_ source: String, with runner: AppleScriptRunner) async -> AppleScriptOutcome {
-        runner(source)
+        await runner(source)
     }
 }

@@ -10,10 +10,10 @@ import AppKit
 /// What saving and resuming a checkpoint reach outside the launcher through. Tests replace its parts.
 struct CheckpointEnvironment {
     /// What is selected in Finder, or the folder in front. Empty when Finder may not be asked.
-    var finderItems: @Sendable () -> [URL] = { (try? FinderSelection.selectionOrFolder()) ?? [] }
-    /// The tabs open in the browsers Floe can ask, read off the main thread.
+    var finderItems: @Sendable () async -> [URL] = { await (try? FinderSelection.selectionOrFolder()) ?? [] }
+    /// The tabs open in the browsers Floe can ask.
     var tabs: @Sendable () async -> [BrowserTab] = {
-        await Task.detached { BrowserTabs.read(BrowserApp.all.filter(BrowserApp.isRunning), run: AppleScript.run).tabs }.value
+        await BrowserTabs.read(BrowserApp.all.filter(BrowserApp.isRunning), run: AppleScript.run).tabs
     }
 
     /// Opens a file in its own app, or a folder in Finder.
@@ -41,7 +41,7 @@ extension LauncherModel {
         hidePanel()
         reset()
         return Task { [weak self, finderItems = checkpointing.finderItems, tabs = checkpointing.tabs] in
-            let files = await Task { @concurrent in finderItems() }.value
+            let files = await Task { @concurrent in await finderItems() }.value
             let items = await Checkpoint.items(files: files, tabs: tabs())
             guard let self else { return }
             guard !items.isEmpty || !note.isEmpty else {

@@ -350,6 +350,9 @@ struct ShellCommandTests {
         model.shell.finderFolder = { throw SelectionError.finderEmpty }
         let before = ran.all.count
         model.runInFinderFolder("git status", terminal: nil)
+        for _ in 0 ..< 100 where said.count < 2 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
         #expect(ran.all.count == before, "with no folder to run in, nothing runs")
         #expect(said.count == 2)
 

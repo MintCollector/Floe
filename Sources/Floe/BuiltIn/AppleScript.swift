@@ -6,6 +6,7 @@
 //  Licensed under the GNU AGPLv3
 
 import Foundation
+import Subprocess
 
 /// How a script ended.
 nonisolated enum AppleScriptOutcome: Equatable, Sendable {
@@ -15,8 +16,8 @@ nonisolated enum AppleScriptOutcome: Equatable, Sendable {
     case failed
 }
 
-/// Runs a script and waits for it. Tests pass their own, so no test ever talks to a browser.
-typealias AppleScriptRunner = @Sendable (String) -> AppleScriptOutcome
+/// Runs a script and answers when it ends. Tests pass their own, so no test ever talks to a browser.
+typealias AppleScriptRunner = @Sendable (String) async -> AppleScriptOutcome
 
 /// The one place a script is handed to macOS. Each caller reads the answer its own way and words its own messages.
 nonisolated enum AppleScript {
@@ -37,32 +38,54 @@ nonisolated enum AppleScript {
         var isRefused: Bool {
             errorNumber == AppleScript.refusedErrorNumber
         }
-    }
 
-    /// Blocks until the script ends: call it off the main thread.
-    static func execute(_ source: String) -> Execution {
-        var error: NSDictionary?
-        let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
-        return Execution(
-            didRun: result != nil,
-            text: result?.stringValue,
-            hasError: error != nil,
-            errorNumber: error?[NSAppleScript.errorNumber] as? Int,
-            errorMessage: error?[NSAppleScript.errorMessage] as? String
-        )
-    }
+        init(didRun: Bool = true, text: String? = nil, hasError: Bool = false, errorNumber: Int? = nil, errorMessage: String? = nil) {
+            self.didRun = didRun
+            self.text = text
+            self.hasError = hasError
+            self.errorNumber = errorNumber
+            self.errorMessage = errorMessage
+        }
 
-    /// Runs the script on a background queue and reports back on the main thread.
-    static func execute(_ source: String, qos: DispatchQoS.QoSClass, completion: @escaping @MainActor (Execution) -> Void) {
-        DispatchQueue.global(qos: qos).async {
-            let execution = execute(source)
-            DispatchQueue.main.async { completion(execution) }
+        /// What `osascript` left behind: the answer and a line break, or `12:34: execution error: Why. (-1743)`.
+        init(status: Int32, output: String, errors: String) {
+            guard status != 0 else {
+                self.init(text: output.hasSuffix("\n") ? String(output.dropLast()) : output)
+                return
+            }
+            let report = errors.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = report.firstMatch(of: /error: (?<message>.*) \((?<number>-?\d+)\)$/.dotMatchesNewlines())
+            self.init(
+                didRun: false,
+                hasError: true,
+                errorNumber: parts.flatMap { Int($0.number) },
+                errorMessage: parts.map { String($0.message) } ?? (report.isEmpty ? nil : report)
+            )
         }
     }
 
-    /// Blocks until the script ends: call it off the main thread.
+    /// The script runs in `osascript`, because compiling one in this process makes macOS keep its 13 MB
+    /// of malware rules here for good.
+    static func execute(_ source: String) async -> Execution {
+        let result = try? await Subprocess.run(
+            .path("/usr/bin/osascript"),
+            input: .string(source),
+            output: .string(limit: 16 * 1024 * 1024),
+            error: .string(limit: 64 * 1024)
+        )
+        guard let result, case let .exited(status) = result.terminationStatus else { return Execution(didRun: false, hasError: true) }
+        return Execution(status: status, output: result.standardOutput, errors: result.standardError)
+    }
+
+    /// Runs the script and reports back on the main thread, for a caller that does not wait.
+    static func execute(_ source: String, priority: TaskPriority, completion: @escaping @MainActor (Execution) -> Void) {
+        Task(priority: priority) {
+            await completion(execute(source))
+        }
+    }
+
     static let run: AppleScriptRunner = { source in
-        let execution = execute(source)
+        let execution = await execute(source)
         if let number = execution.errorNumber {
             return number == refusedErrorNumber ? .refused : .failed
         }

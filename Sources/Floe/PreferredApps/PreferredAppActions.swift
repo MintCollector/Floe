@@ -29,15 +29,17 @@ extension LauncherModel {
     func openFinderSelection(in role: AppRole, app: ResolvedApp) {
         hidePanel()
         reset()
-        do {
-            let items = try FinderSelection.selectionOrFolder()
-            if let handoff = PreferredApps.handoff(items, to: app, role: role, isFolder: PreferredApps.isFolder) {
-                PreferredApps.open(handoff)
+        Task {
+            do {
+                let items = try await FinderSelection.selectionOrFolder()
+                if let handoff = PreferredApps.handoff(items, to: app, role: role, isFolder: PreferredApps.isFolder) {
+                    PreferredApps.open(handoff)
+                }
+            } catch SelectionError.automationRefused {
+                SystemCommand.askForAutomation(toControl: "Finder")
+            } catch {
+                showHUD(String(localized: "Couldn't read the Finder selection", bundle: .floe))
             }
-        } catch SelectionError.automationRefused {
-            SystemCommand.askForAutomation(toControl: "Finder")
-        } catch {
-            showHUD(String(localized: "Couldn't read the Finder selection", bundle: .floe))
         }
     }
 }

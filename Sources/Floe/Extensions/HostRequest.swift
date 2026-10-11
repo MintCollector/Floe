@@ -123,7 +123,7 @@ nonisolated enum HostRequest: Sendable, Equatable {
         case .selectedText:
             return try await SelectedText.current()
         case .selectedFinderItems:
-            return try await MainActor.run { try FinderSelection.current() }
+            return try await FinderSelection.current()
         case .clipboardRead:
             return await MainActor.run { PasteboardContent.read() }
         case .frontmostApplication:

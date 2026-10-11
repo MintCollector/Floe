@@ -197,7 +197,7 @@ enum Notes {
             return
         }
         let source = appleNotesScript(text: text)
-        AppleScript.execute(source, qos: .userInitiated) { execution in
+        AppleScript.execute(source, priority: .userInitiated) { execution in
             switch execution.errorNumber {
             case nil: completion(text.isEmpty ? nil : String(localized: "Saved to Notes", bundle: .floe, comment: "Notes is Apple's notes app."))
             case AppleScript.refusedErrorNumber: SystemCommand.askForAutomation(toControl: "Notes")
