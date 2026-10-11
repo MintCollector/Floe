@@ -27,6 +27,9 @@ extension LauncherModel {
         if case .keyword = item {
             return String(localized: "Type Keyword", bundle: .floe, comment: "A button that puts the selected keyword into the search field, for the user to go on typing.")
         }
+        if case .definition = item {
+            return String(localized: "Open in Dictionary", bundle: .floe, comment: "Dictionary is the name of Apple's app.")
+        }
         return draftTitle(for: item)
     }
 
@@ -87,8 +90,17 @@ extension LauncherModel {
         case let .outgoing(draft): reach(draft.link)
         case let .focus(request, shortcut): setFocus(request, shortcut: shortcut)
         case let .keyword(hint): type(hint)
+        case let .definition(definition): reach(definition.link)
         default: break
         }
+    }
+
+    /// What the dictionary says about the word goes to the clipboard.
+    private func copy(_ definition: WordDefinition) {
+        NSPasteboard.general.copy(definition.text)
+        showHUD(String(localized: "Copied \(definition.word)", bundle: .floe, comment: "Shown briefly after copying. The placeholder is what was copied, such as a file name."))
+        hidePanel()
+        reset()
     }
 
     /// Puts a keyword into the search, ready for the rest to be typed after it.
@@ -107,6 +119,9 @@ extension LauncherModel {
         }
         if case let .contact(.person(person)) = item {
             return contactActions(for: person)
+        }
+        if case let .definition(definition) = item {
+            return [ItemAction(title: String(localized: "Copy Definition", bundle: .floe), symbol: "doc.on.doc") { [weak self] in self?.copy(definition) }]
         }
         return shellActions(for: item)
     }

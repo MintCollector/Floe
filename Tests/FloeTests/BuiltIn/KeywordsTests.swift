@@ -40,7 +40,7 @@ struct KeywordsTests {
         let scoped = (RootSearch.standardScopes().map(\.keyword) + RootSearch.standardSources().map(\.keyword)).filter { !own.contains($0) }
         let typed = [
             CommandPrefix.greaterThan.rawValue, Checkpoint.keyword, Processes.keyword, Processes.portKeyword, ReminderDraft.keyword, EventDraft.keyword,
-            TimerDraft.keyword, FocusRequest.keyword, AskAI.keyword, EmojiSearchProvider.prefix,
+            TimerDraft.keyword, FocusRequest.keyword, WordDefinition.keyword, AskAI.keyword, EmojiSearchProvider.prefix,
         ] + OutgoingDraft.Kind.allCases.map(\.keyword) + NoteAction.allCases.map(\.keyword)
         let listed = KeywordHint.all.map(\.keyword)
         #expect(Set(listed) == Set(scoped + typed), "a keyword that is added gets a row, and one that is gone loses it")

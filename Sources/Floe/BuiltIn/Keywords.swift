@@ -58,6 +58,7 @@ extension KeywordHint {
         KeywordHint(keyword: "shortcuts", example: "shortcuts mail", detail: String(localized: "Run one of your Shortcuts", bundle: .floe, comment: "Shortcuts are what the user makes in Apple's Shortcuts app."), need: .shortcuts),
         KeywordHint(keyword: Processes.keyword, example: "kill safari", detail: String(localized: "Quit a running process", bundle: .floe)),
         KeywordHint(keyword: Processes.portKeyword, example: "port 3000", detail: String(localized: "See what is listening on a port", bundle: .floe)),
+        KeywordHint(keyword: WordDefinition.keyword, example: "define tide", detail: String(localized: "Look a word up in the dictionary", bundle: .floe)),
         KeywordHint(keyword: AskAI.keyword, example: "ask how do tides work", detail: String(localized: "Ask AI a question", bundle: .floe), need: .ai),
         KeywordHint(keyword: EmojiSearchProvider.prefix, example: ":smile", detail: String(localized: "Find an emoji or a symbol", bundle: .floe), takesASpace: false),
     ]

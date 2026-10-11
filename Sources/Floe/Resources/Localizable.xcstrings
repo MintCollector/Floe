@@ -929,6 +929,7 @@
     "Copy Answer" : {},
     "Copy Bundle Identifier" : {},
     "Copy Command" : {},
+    "Copy Definition" : {},
     "Copy Details" : {},
     "Copy Email" : {},
     "Copy File" : {},
@@ -1094,6 +1095,9 @@
     },
     "Diagnostics" : {
       "comment" : "The heading over the logging settings."
+    },
+    "Dictionary" : {
+      "comment" : "The kind of a result, shown beside its title. Here what the dictionary says about a word."
     },
     "Digital Storage" : {
       "comment" : "A kind of unit, named in a calculator error."
@@ -1629,6 +1633,7 @@
         }
       }
     },
+    "Look a word up in the dictionary" : {},
     "Mail" : {
       "comment" : "The kind of a result, shown beside its title. Here a row that opens an email draft."
     },
@@ -1916,6 +1921,9 @@
     },
     "Open in Contacts" : {
       "comment" : "Contacts is the name of Apple's app."
+    },
+    "Open in Dictionary" : {
+      "comment" : "Dictionary is the name of Apple's app."
     },
     "Open in Shortcuts" : {
       "comment" : "Shortcuts is the name of Apple's app."

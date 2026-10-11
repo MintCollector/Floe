@@ -267,6 +267,8 @@ enum RootItem: Identifiable {
     case focus(FocusRequest, shortcut: String)
     /// A word the search answers to, listed by `keywords`; Return types it into the search.
     case keyword(KeywordHint)
+    /// What the dictionary says about the word typed after `define`; Return opens it in the Dictionary app.
+    case definition(WordDefinition)
 
     static let menuBarSearchKey = "builtin:menubar-search"
     static let emojiSearchKey = "builtin:emoji-search"
@@ -316,6 +318,7 @@ enum RootItem: Identifiable {
         case let .outgoing(draft): "\(draft.kind.rawValue)-draft"
         case let .focus(request, _): request == .toggle ? "focus-toggle" : "focus-request"
         case let .keyword(hint): "keyword:\(hint.keyword)"
+        case .definition: "definition"
         }
     }
 
@@ -366,6 +369,7 @@ enum RootItem: Identifiable {
         case let .outgoing(draft): draft.title
         case let .focus(request, _): request.title
         case let .keyword(hint): hint.example
+        case let .definition(definition): definition.text
         case let .shell(row, _): row.origin == .typed ? String(localized: "Run \(row.text)", bundle: .floe, comment: "The placeholder is a shell command the user typed.") : row.text
         }
     }
@@ -407,7 +411,7 @@ enum RootItem: Identifiable {
         case .snippet: id
         case let .focus(request, _): request == .toggle ? id : nil
         case .settings, .settingsPane, .note, .thaw, .finderSelection, .calculator, .emoji, .quicklink, .searchFiles, .event: nil
-        case .file, .clipboardEntry, .menuBarItem, .menuBarAccess, .browserTab, .askAI, .webAddress, .shell, .process, .receipt, .checkpoint, .checkpointDraft, .reminderDraft, .eventDraft, .timer, .contact, .outgoing, .keyword: nil
+        case .file, .clipboardEntry, .menuBarItem, .menuBarAccess, .browserTab, .askAI, .webAddress, .shell, .process, .receipt, .checkpoint, .checkpointDraft, .reminderDraft, .eventDraft, .timer, .contact, .outgoing, .keyword, .definition: nil
         }
     }
 
@@ -443,6 +447,7 @@ enum RootItem: Identifiable {
         case .outgoing: String(localized: "Message", bundle: .floe, comment: "The kind of a result, shown beside its title. Here a row that opens a message draft.")
         case .focus: String(localized: "Focus", bundle: .floe, comment: "The kind of a result, shown beside its title. Focus is the macOS feature that silences notifications.")
         case .keyword: String(localized: "Keyword", bundle: .floe, comment: "The kind of a result, shown beside its title. Here a word the search answers to.")
+        case .definition: String(localized: "Dictionary", bundle: .floe, comment: "The kind of a result, shown beside its title. Here what the dictionary says about a word.")
         case .contact: String(localized: "Contact", bundle: .floe, comment: "The kind of a result, shown beside its title. Here a person from Contacts.")
         case .timer: String(localized: "Timer", bundle: .floe, comment: "The kind of a result, shown beside its title. Here a countdown.")
         case .receipt: String(localized: "Receipt", bundle: .floe, comment: "The kind of a result, shown beside its title. Here a record of something Floe did.")

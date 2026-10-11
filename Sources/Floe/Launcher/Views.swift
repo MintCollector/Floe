@@ -358,6 +358,8 @@ struct RootIcon: View {
             SymbolTile(symbol: "moon")
         case .keyword:
             SymbolTile(symbol: "character.cursor.ibeam")
+        case .definition:
+            SymbolTile(symbol: "character.book.closed")
         case .timer:
             SymbolTile(symbol: "timer")
         case let .receipt(receipt):
