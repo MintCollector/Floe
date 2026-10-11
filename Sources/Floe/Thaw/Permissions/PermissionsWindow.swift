@@ -31,25 +31,16 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let settings = AppSettings.shared
     private let permissions = AppPermissions.shared
-    /// The keys of the permissions the window was closed on without a grant, so each is asked about once.
-    private static let declinedKey = "declinedPermissions"
-
-    private var ungranted: Set<String> {
-        Set(permissions.allPermissions.filter { !$0.hasPermission }.map(\.key))
-    }
 
     /// Opens the window when the sequencer has something to show. Returns whether it did.
     @discardableResult
     func showIfNeeded(replayRequested: Bool = false) -> Bool {
         // Resolve the stage once per opening; the "seen" write must not change the screen under the user.
         permissions.refreshPermissionsState()
-        let stored = Set(UserDefaults.standard.stringArray(forKey: Self.declinedKey) ?? [])
-        let declined = OnboardingSequencer.stillDeclined(stored, ungranted: ungranted)
-        UserDefaults.standard.set(declined.sorted(), forKey: Self.declinedKey)
         let stage = OnboardingSequencer.stage(
             hasSeenOnboarding: settings.hasSeenOnboarding,
             allPermissionsGranted: permissions.hasEveryPermission,
-            hasUnanswered: OnboardingSequencer.hasUnanswered(ungranted: ungranted, declined: declined),
+            hasUnanswered: permissions.hasUnanswered,
             replayRequested: replayRequested
         )
         switch stage {
@@ -107,7 +98,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         window = nil
         defer { onClose?() }
         permissions.refreshPermissionsState()
-        UserDefaults.standard.set(ungranted.sorted(), forKey: Self.declinedKey)
+        permissions.declineUngranted()
         guard !settings.hasSeenOnboarding else { return }
         settings.hasSeenOnboarding = true
         settings.save()

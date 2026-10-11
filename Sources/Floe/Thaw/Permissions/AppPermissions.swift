@@ -17,7 +17,7 @@ import Foundation
 @MainActor
 @Observable
 final class AppPermissions {
-    static let shared = AppPermissions()
+    static let shared = AppPermissions(decisions: .shared)
 
     /// The state of the app's granted permissions.
     enum PermissionsState: Equatable {
@@ -32,6 +32,19 @@ final class AppPermissions {
 
     /// The optional ones, each for one feature: Calendar, Reminders and Contacts.
     let others: [Permission]
+    private let decisions: PermissionDecisions?
+
+    private var ungranted: Set<String> {
+        Set(allPermissions.filter { !$0.hasPermission }.map(\.key))
+    }
+
+    var hasUnanswered: Bool {
+        decisions?.hasUnanswered(ungranted) ?? !ungranted.isEmpty
+    }
+
+    func declineUngranted() {
+        decisions?.decline(ungranted)
+    }
 
     /// Fired after any permission's granted state transitions, for owners
     /// that must react to a specific grant.
@@ -52,14 +65,21 @@ final class AppPermissions {
     }
 
     /// Creates a new permissions manager. Tests pass their own permissions; nil uses the system's.
-    init(accessibility: Permission? = nil, others: [Permission]? = nil) {
+    init(accessibility: Permission? = nil, others: [Permission]? = nil, decisions: PermissionDecisions? = nil) {
+        self.decisions = decisions
         self.accessibility = accessibility ?? AccessibilityPermission()
         self.others = others ?? DataPermissions.system
         self.updatePermissionsState()
         // Permission is @Observable, so changes arrive via onChange.
         for permission in allPermissions {
+            if permission.hasPermission {
+                decisions?.recordGrant(for: permission.key)
+            }
             permission.onChange = { [weak self] in
                 guard let self else { return }
+                if permission.hasPermission {
+                    self.decisions?.recordGrant(for: permission.key)
+                }
                 updatePermissionsState()
                 onPermissionTransition?(permission, permission.hasPermission)
             }

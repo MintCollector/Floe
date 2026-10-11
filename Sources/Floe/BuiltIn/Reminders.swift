@@ -194,17 +194,21 @@ enum Reminders {
 
     /// Whether Floe may write reminders. macOS asks the user the first time.
     static func requestAccess() async -> Bool {
-        switch EKEventStore.authorizationStatus(for: .reminder) {
+        let granted: Bool = switch EKEventStore.authorizationStatus(for: .reminder) {
         case .fullAccess:
-            return true
+            true
         case .notDetermined:
-            return await withCheckedContinuation { continuation in
+            await withCheckedContinuation { continuation in
                 // Sendable: EventKit answers on a queue of its own.
                 store.requestFullAccessToReminders { @Sendable granted, _ in continuation.resume(returning: granted) }
             }
         default:
-            return false
+            false
         }
+        if granted {
+            PermissionDecisions.shared.recordGrant(for: "reminders")
+        }
+        return granted
     }
 
     /// The names of the user's lists. Empty until Floe may use Reminders: reading them never asks.

@@ -91,11 +91,15 @@ nonisolated struct ContactBook: Sendable {
     private static func requestSystemAccess() async -> Bool {
         // Without the sentence that says why, macOS ends a process that asks: a development build run outside its bundle.
         guard Bundle.main.object(forInfoDictionaryKey: "NSContactsUsageDescription") != nil else { return false }
-        switch CNContactStore.authorizationStatus(for: .contacts) {
-        case .authorized: return true
-        case .notDetermined: return await (try? CNContactStore().requestAccess(for: .contacts)) ?? false
-        default: return false
+        let granted = switch CNContactStore.authorizationStatus(for: .contacts) {
+        case .authorized: true
+        case .notDetermined: await (try? CNContactStore().requestAccess(for: .contacts)) ?? false
+        default: false
         }
+        if granted {
+            await PermissionDecisions.shared.recordGrant(for: "contacts")
+        }
+        return granted
     }
 
     private static func systemPeople() -> [ContactPerson] {

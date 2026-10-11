@@ -85,7 +85,7 @@ final class CalendarAgenda {
             requestAccess()
             return []
         case .fullAccess:
-            break
+            PermissionDecisions.shared.recordGrant(for: "calendar")
         default:
             return []
         }
@@ -101,7 +101,10 @@ final class CalendarAgenda {
         // Sendable: EventKit answers on a queue of its own.
         store.requestFullAccessToEvents { @Sendable [weak self] granted, _ in
             guard granted else { return }
-            DispatchQueue.main.async { [weak self] in self?.loadIfStale() }
+            DispatchQueue.main.async { [weak self] in
+                PermissionDecisions.shared.recordGrant(for: "calendar")
+                self?.loadIfStale()
+            }
         }
     }
 

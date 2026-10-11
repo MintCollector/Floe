@@ -68,17 +68,21 @@ enum CalendarEvents {
 
     /// Whether Floe may read and write events: deleting one again means finding it. macOS asks the user the first time.
     static func requestAccess() async -> Bool {
-        switch EKEventStore.authorizationStatus(for: .event) {
+        let granted: Bool = switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess:
-            return true
+            true
         case .notDetermined:
-            return await withCheckedContinuation { continuation in
+            await withCheckedContinuation { continuation in
                 // Sendable: EventKit answers on a queue of its own.
                 store.requestFullAccessToEvents { @Sendable granted, _ in continuation.resume(returning: granted) }
             }
         default:
-            return false
+            false
         }
+        if granted {
+            PermissionDecisions.shared.recordGrant(for: "calendar")
+        }
+        return granted
     }
 
     /// Adds the event to the default calendar and answers with its identifier.

@@ -49,6 +49,42 @@ private final class SystemStub {
 struct PermissionPollingBudgetTests {
     private let stub = SystemStub()
 
+    @Test func aGrantAfterOnboardingIsRememberedBeforeAccessIsLost() throws {
+        let suite = "floe-permission-decisions-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let decisions = PermissionDecisions(defaults: defaults)
+        let permission = stub.makePermission()
+        let permissions = AppPermissions(accessibility: permission, others: [], decisions: decisions)
+        defer { permissions.stopAllChecks() }
+        permissions.declineUngranted()
+        #expect(permissions.hasUnanswered == false)
+        decisions.decline(["test", "calendar"])
+
+        stub.granted = true
+        permission.refreshStatus()
+        #expect(decisions.hasUnanswered(["test"]))
+        #expect(decisions.hasUnanswered(["calendar"]) == false, "other declines survive")
+
+        stub.granted = false
+        permission.refreshStatus()
+        let relaunched = PermissionDecisions(defaults: defaults)
+        #expect(relaunched.hasUnanswered(["test"]))
+        #expect(permissions.hasUnanswered)
+    }
+
+    @Test func aGrantAlreadyPresentAtStartupClearsAnEarlierDecline() throws {
+        let suite = "floe-permission-decisions-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let decisions = PermissionDecisions(defaults: defaults)
+        decisions.decline(["test"])
+        stub.granted = true
+        let permissions = AppPermissions(accessibility: stub.makePermission(), others: [], decisions: decisions)
+        defer { permissions.stopAllChecks() }
+        #expect(decisions.hasUnanswered(["test"]))
+    }
+
     @Test func aGrantedPermissionNeverArmsThePoll() {
         stub.granted = true
         let permission = stub.makePermission()
