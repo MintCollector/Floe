@@ -138,8 +138,20 @@ extension LauncherModel {
 
     /// Keeps a receipt of something Floe did, unless the user switched that off.
     func record(_ receipt: Receipt) {
-        if settings.keepsReceipts {
+        guard settings.keepsReceipts else { return }
+        if let residentRequests {
+            residentRequests(.receipt(receipt))
+        } else {
             receipts.add(receipt)
+        }
+    }
+
+    /// Marks completion through the resident when this model is only a foreground reader.
+    private func markReceiptUndone(_ id: UUID) {
+        if let residentRequests {
+            residentRequests(.receiptUndone(id, Date()))
+        } else {
+            receipts.markUndone(id)
         }
     }
 
@@ -153,13 +165,13 @@ extension LauncherModel {
         }
         let outcome = ReceiptUndo.undo(receipt, delete: delete)
         if [.putBack, .deleted, .alreadyDeleted].contains(outcome) {
-            receipts.markUndone(receipt.id)
+            markReceiptUndone(receipt.id)
             if receipt.kind == .extensionRemoved {
                 reloadCommands()
             }
         } else if case let .trashed(moved) = outcome {
             // The move to the Trash leaves a receipt of its own, so the note can be put back.
-            receipts.markUndone(receipt.id)
+            markReceiptUndone(receipt.id)
             record(moved)
         }
         showHUD(ReceiptUndo.message(for: outcome, subject: receipt.subject, kind: receipt.kind))

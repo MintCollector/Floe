@@ -27,6 +27,26 @@ struct ExtensionStoreSettingsPage: View {
         .task {
             await store.loadCatalog()
         }
+        .alert(store.menuBarOffer?.title ?? "", isPresented: offerIsShown, presenting: store.menuBarOffer) { offer in
+            if offer.ready.isEmpty {
+                Button("OK", role: .cancel) { store.menuBarOffer = nil }
+            } else {
+                Button("Add to Menu Bar") {
+                    AppSettings.shared.menuBarCommands.formUnion(offer.ready.map(\.id))
+                }
+                Button("Not Now", role: .cancel) { store.menuBarOffer = nil }
+            }
+        } message: { offer in
+            Text(offer.message)
+        }
+    }
+
+    private var offerIsShown: Binding<Bool> {
+        Binding(get: { store.menuBarOffer != nil }, set: {
+            if !$0 {
+                store.menuBarOffer = nil
+            }
+        })
     }
 
     @ViewBuilder

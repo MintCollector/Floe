@@ -15,10 +15,13 @@ final class IncomingURLRouter: NSObject {
         oauth: { OAuthBroker.shared.complete(url: $0) }
     )
 
+    var forwardOAuth: ((URL) -> Void)?
+    var forwardAppearance: ((URL) -> Void)?
     private let oauthIsParked: Bool
     private let appearance: (URL) -> Void
     private let oauth: (URL) -> Void
 
+    /// Injects URL consumers without registering a system handler or beginning appearance tracking.
     init(
         oauthIsParked: Bool = OAuthBroker.isParked,
         appearance: @escaping (URL) -> Void,
@@ -29,7 +32,8 @@ final class IncomingURLRouter: NSObject {
         self.oauth = oauth
     }
 
-    func install() {
+    /// Registers URL delivery; only the resident subscribes to Thaw appearance updates.
+    func install(followsAppearance: Bool = true) {
         NSAppleEventManager.shared().setEventHandler(
             self,
             andSelector: #selector(handleGetURLEvent(_:_:)),
@@ -37,9 +41,12 @@ final class IncomingURLRouter: NSObject {
             andEventID: AEEventID(kAEGetURL)
         )
         // Thaw's answer comes back through the handler, so the follower asks only once it is in place.
-        ThawAppearanceFollower.shared.start()
+        if followsAppearance {
+            ThawAppearanceFollower.shared.start()
+        }
     }
 
+    /// Ignores malformed Apple events before applying the scheme and host routing checks.
     @objc private func handleGetURLEvent(_ event: NSAppleEventDescriptor?, _: NSAppleEventDescriptor?) {
         guard let urlString = event?.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
               let url = URL(string: urlString)
@@ -52,9 +59,9 @@ final class IncomingURLRouter: NSObject {
         guard url.scheme?.lowercased() == "floe" else { return }
         switch url.host?.lowercased() {
         case ThawAppearanceFollower.callbackHost:
-            appearance(url)
+            (forwardAppearance ?? appearance)(url)
         case "oauth" where !oauthIsParked:
-            oauth(url)
+            (forwardOAuth ?? oauth)(url)
         default:
             break
         }

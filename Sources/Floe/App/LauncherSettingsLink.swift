@@ -23,7 +23,9 @@ final class LauncherSettingsLink {
         storage: .file(Paths.support.appendingPathComponent("ExtensionSync.json"))
     )
     private var cancellables = Set<AnyCancellable>()
+    var onChange: (() -> Void)?
 
+    /// Gates incoming Settings messages against the process this resident actually launched.
     init(model: LauncherModel, settings: AppSettings = .shared, hotkeys: HotkeyRegistry) {
         self.model = model
         self.settings = settings
@@ -32,6 +34,7 @@ final class LauncherSettingsLink {
         link = ProcessLink(role: .launcher, gate: LinkGate(ownPid: getpid()) { process.pid })
     }
 
+    /// Starts resident-owned synchronization and publishes service state to Settings.
     func start() {
         let link = link
         ProcessLink.current = link
@@ -54,11 +57,7 @@ final class LauncherSettingsLink {
             .store(in: &cancellables)
         // The index of file names follows its switch from here on, and Settings is told how it is doing.
         settings.$indexesFileNames.removeDuplicates()
-            .sink { isOn in
-                FileIndexService.shared.set(on: isOn)
-                // The order of the matches uses when files were last opened, which Spotlight knows.
-                RecentFileUse.shared.follow(isOn)
-            }
+            .sink { FileIndexService.shared.set(on: $0) }
             .store(in: &cancellables)
         FileIndexService.shared.observe { link.send(LinkMessage(.fileIndexState, $0.text)) }
         sync.start { link.send(LinkMessage(.syncState, $0.text)) }
@@ -84,14 +83,17 @@ final class LauncherSettingsLink {
         process.show(page: page)
     }
 
+    /// Ends the owned Settings process during resident shutdown.
     func terminate() {
         process.terminate()
     }
 
+    /// Suppresses global shortcuts while either process is recording a new shortcut.
     private func suspendHotkeys(local: Bool) {
         hotkeys.isSuspended = local || recording.isRecording
     }
 
+    /// Clears remote recording state and reloads stores even if the final notification was lost.
     private func settingsProcessExited() {
         recording.settingsProcessExited()
         suspendHotkeys(local: settings.isRecordingHotkey)
@@ -101,7 +103,27 @@ final class LauncherSettingsLink {
         QuicklinkStore.shared.reload()
     }
 
+    /// Recovers foreground-saved changes after its pipe closes, including an unexpected exit.
+    func refreshFromPanel() {
+        settings.reload()
+        SnippetStore.shared.reload()
+        QuicklinkStore.shared.reload()
+    }
+
+    /// Accepts only the foreground's supported settings mutations and relays them to Settings.
+    func receiveFromPanel(_ message: LinkMessage) {
+        guard message.isWellFormed else { return }
+        switch message.kind {
+        case .settingsChanged, .storeChanged, .rescan, .forwardURL:
+            handle(message)
+            link.send(message)
+        default: break
+        }
+    }
+
+    /// Applies a validated Settings message and notifies the foreground to reload afterwards.
     private func handle(_ message: LinkMessage) {
+        defer { onChange?() }
         switch message.kind {
         case .settingsChanged:
             settings.reload()
@@ -124,6 +146,7 @@ final class LauncherSettingsLink {
         }
     }
 
+    /// Reloads only the named persistent store; absent or unsupported names do nothing.
     private func reload(_ store: LinkStore?) {
         switch store {
         case .snippets: SnippetStore.shared.reload()
@@ -133,6 +156,7 @@ final class LauncherSettingsLink {
         }
     }
 
+    /// Refreshes the command or script catalog requested by Settings.
     private func rescan(_ scan: LinkScan?) {
         switch scan {
         case .scripts: model.reloadScripts()
