@@ -30,6 +30,12 @@ extension LauncherModel {
         if case .definition = item {
             return String(localized: "Open in Dictionary", bundle: .floe, comment: "Dictionary is the name of Apple's app.")
         }
+        if case .answer = item {
+            return String(localized: "Copy to Clipboard", bundle: .floe)
+        }
+        if case let .window(row) = item {
+            return title(for: row)
+        }
         return draftTitle(for: item)
     }
 
@@ -74,6 +80,8 @@ extension LauncherModel {
             undo(receipt)
         } else if case let .receipt(receipt) = item {
             showDetails(of: receipt)
+        } else if case let .window(row) = item {
+            open(row)
         } else {
             openTyped(item)
         }
@@ -91,7 +99,7 @@ extension LauncherModel {
         case let .focus(request, shortcut): setFocus(request, shortcut: shortcut)
         case let .keyword(hint): type(hint)
         case let .definition(definition): reach(definition.link)
-        default: break
+        default: openFound(item)
         }
     }
 
@@ -99,6 +107,23 @@ extension LauncherModel {
     private func copy(_ definition: WordDefinition) {
         NSPasteboard.general.copy(definition.text)
         showHUD(String(localized: "Copied \(definition.word)", bundle: .floe, comment: "Shown briefly after copying. The placeholder is what was copied, such as a file name."))
+        hidePanel()
+        reset()
+    }
+
+    /// Return on something the search found or worked out: a bookmark opens, and an answer goes to the clipboard,
+    /// a password marked so that clipboard managers leave it alone.
+    private func openFound(_ item: RootItem) {
+        if case let .bookmark(bookmark) = item {
+            reach(bookmark.url)
+        }
+        guard case let .answer(row) = item else { return }
+        if row.isSecret {
+            NSPasteboard.general.copySecret(row.text)
+        } else {
+            NSPasteboard.general.copy(row.text)
+        }
+        showHUD(String(localized: "Copied Answer", bundle: .floe))
         hidePanel()
         reset()
     }
@@ -122,6 +147,9 @@ extension LauncherModel {
         }
         if case let .definition(definition) = item {
             return [ItemAction(title: String(localized: "Copy Definition", bundle: .floe), symbol: "doc.on.doc") { [weak self] in self?.copy(definition) }]
+        }
+        if case let .window(.window(window)) = item {
+            return windowActions(for: window)
         }
         return shellActions(for: item)
     }

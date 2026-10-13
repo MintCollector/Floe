@@ -89,10 +89,18 @@ struct RootIcon: View {
             }
         case .shortcut:
             AppleShortcutIcon()
+        case let .window(.window(window)):
+            if let url = window.appURL {
+                AppIconView(path: url.path, size: 24)
+            } else {
+                SymbolTile(symbol: "macwindow")
+            }
+        case .window(.access):
+            SymbolTile(symbol: "hand.raised")
         case .extensionStore, .system, .note, .snippet, .event, .clipboardEntry,
              .menuBarAccess, .askAI, .webAddress, .checkpoint, .checkpointDraft,
              .reminderDraft, .eventDraft, .contact, .outgoing, .focus, .keyword,
-             .definition, .timer, .receipt, .shell:
+             .definition, .answer, .bookmark, .timer, .receipt, .shell:
             symbolIcon
         }
     }
@@ -136,6 +144,10 @@ struct RootIcon: View {
             SymbolTile(symbol: "character.cursor.ibeam")
         case .definition:
             SymbolTile(symbol: "character.book.closed")
+        case let .answer(row):
+            SymbolTile(symbol: row.symbol)
+        case .bookmark:
+            SymbolTile(symbol: "book")
         case .timer:
             SymbolTile(symbol: "timer")
         case let .receipt(receipt):

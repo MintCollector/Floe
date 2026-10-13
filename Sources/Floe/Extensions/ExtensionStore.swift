@@ -24,18 +24,22 @@ nonisolated enum StoreSearch {
     }
 
     static func score(_ query: String, name: String) -> Int? {
-        let wanted = forms(query)
-        let candidate = forms(name)
-        return [Fuzzy.score(wanted.spaced, candidate.spaced), Fuzzy.score(wanted.joined, candidate.joined)].compactMap(\.self).max()
+        score(forms(query), name: forms(name))
+    }
+
+    /// The score with the query's and the name's forms already split, so a search of the whole catalog
+    /// splits the query once and each name once instead of both again for every candidate.
+    static func score(_ wanted: (spaced: String, joined: String), name candidate: (spaced: String, joined: String)) -> Int? {
+        [Fuzzy.score(wanted.spaced, candidate.spaced), Fuzzy.score(wanted.joined, candidate.joined)].compactMap(\.self).max()
     }
 
     /// Everything, in the catalog's order, for a query with nothing to match on.
     static func results(_ catalog: [StoreListing], query: String) -> [StoreListing] {
-        guard !forms(query).joined.isEmpty else { return catalog }
-        return catalog.enumerated()
-            .compactMap { index, listing in score(query, name: listing.name).map { (listing, $0, index) } }
-            // Equal scores keep the catalog's order, which a plain sort does not promise.
-            .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.2 < $1.2 }
+        let wanted = forms(query)
+        guard !wanted.joined.isEmpty else { return catalog }
+        // sorted(by:) is stable, so equal scores keep the catalog's order.
+        return catalog.compactMap { listing in score(wanted, name: forms(listing.name)).map { (listing, $0) } }
+            .sorted { $0.1 > $1.1 }
             .map(\.0)
     }
 }
@@ -136,22 +140,11 @@ final class ExtensionStore: ObservableObject {
     }
 
     func install(_ name: String) async {
-        guard !busy.contains(name) else { return }
-        busy.insert(name)
-        error = nil
-        defer { busy.remove(name) }
-        do {
-            let fetched = try await Self.fetchExtensionCopy(name: name)
-            defer { try? FileManager.default.removeItem(at: fetched.workDir) }
-            try await Self.runBunInstall(in: fetched.extensionDir)
-            let folderCommit = await latestCommit(touching: name, askingAgain: true)
-            try Self.swapIn(name: name, staged: fetched.extensionDir, commit: Self.revisionToRecord(folderCommit: folderCommit, repositoryCommit: fetched.commit))
+        await perform(name) {
+            try await installFreshCopy(of: name)
             onInstalled()
+            // Only an install asks about menu-bar commands; an update leaves the user's answer alone.
             menuBarOffer = Self.menuBarOffer(for: name)
-        } catch let failure as StoreFailure {
-            self.error = failure.message
-        } catch {
-            self.error = error.localizedDescription
         }
     }
 
@@ -164,18 +157,30 @@ final class ExtensionStore: ObservableObject {
     }
 
     func update(_ name: String) async {
+        await perform(name) {
+            try await installFreshCopy(of: name)
+            onInstalled()
+        }
+    }
+
+    /// What an install and an update share: a copy fetched with git, installed with Bun, and swapped in
+    /// once the install succeeded. The copy's work folder is fetched away again whichever way this ends.
+    private func installFreshCopy(of name: String) async throws {
+        let fetched = try await Self.fetchExtensionCopy(name: name)
+        defer { try? FileManager.default.removeItem(at: fetched.workDir) }
+        try await Self.runBunInstall(in: fetched.extensionDir)
+        let folderCommit = await latestCommit(touching: name, askingAgain: true)
+        try Self.swapIn(name: name, staged: fetched.extensionDir, commit: Self.revisionToRecord(folderCommit: folderCommit, repositoryCommit: fetched.commit))
+    }
+
+    /// One extension's work at a time, and the failure's text kept for the page to show.
+    private func perform(_ name: String, _ work: () async throws -> Void) async {
         guard !busy.contains(name) else { return }
         busy.insert(name)
         error = nil
         defer { busy.remove(name) }
         do {
-            let fetched = try await Self.fetchExtensionCopy(name: name)
-            defer { try? FileManager.default.removeItem(at: fetched.workDir) }
-            try await Self.runBunInstall(in: fetched.extensionDir)
-            let folderCommit = await latestCommit(touching: name, askingAgain: true)
-            try Self.swapIn(name: name, staged: fetched.extensionDir, commit: Self.revisionToRecord(folderCommit: folderCommit, repositoryCommit: fetched.commit))
-            try? FileManager.default.removeItem(at: fetched.workDir)
-            onInstalled()
+            try await work()
         } catch let failure as StoreFailure {
             self.error = failure.message
         } catch {
