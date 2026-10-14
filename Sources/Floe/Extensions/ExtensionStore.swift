@@ -61,6 +61,8 @@ struct StoreDetails: Hashable {
     let author: String?
     let iconURL: URL?
     let commands: [StoreCommand]
+    /// False when the manifest lists platforms and the Mac is not one of them.
+    var runsOnMac = true
 }
 
 @MainActor
@@ -113,6 +115,11 @@ final class ExtensionStore: ObservableObject {
         detailsCache[name]
     }
 
+    /// Takes an extension out of the list. The catalog is names only, so one for another platform is known when its manifest is read.
+    func leaveOut(_ name: String) {
+        catalog.removeAll { $0.name == name }
+    }
+
     func loadCatalog(force: Bool = false) async {
         if isLoading {
             await catalogTask?.value
@@ -152,7 +159,7 @@ final class ExtensionStore: ObservableObject {
     static func menuBarOffer(for name: String, in root: URL = Paths.extensions, settings: AppSettings = .shared) -> MenuBarOffer? {
         let folder = root.appendingPathComponent(name, isDirectory: true)
         guard let manifest = try? Data(contentsOf: folder.appendingPathComponent("package.json")) else { return nil }
-        let commands = ExtensionCommand.commands(inManifest: manifest, folder: folder, source: .local)
+        let commands = ExtensionCommand.commands(inManifest: manifest, folder: folder, source: .local).filter(settings.isEnabled)
         return MenuBarOffer(commands: commands, inMenuBar: settings.menuBarCommands) { !PreferenceStore.missingRequired(for: $0).isEmpty }
     }
 

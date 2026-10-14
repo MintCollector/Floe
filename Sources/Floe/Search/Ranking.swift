@@ -31,7 +31,7 @@ extension RootItem {
     /// Other words a result answers to, matched like its title.
     var keywords: [String] {
         switch self {
-        case let .command(command): [command.extensionTitle]
+        case let .command(command): [command.extensionTitle] + command.keywords
         case let .system(command): command.keywords
         case let .settingsPane(pane): pane.keywords
         case let .note(action, _): action == .new ? AppRole.notes.keywords : [String(localized: "add to note", bundle: .floe, comment: "A search keyword for the row that adds text to a note. Lowercase.")]
@@ -128,5 +128,14 @@ enum Ranking {
     /// A menu bar item matches on its name, or less strongly on the app that owns it.
     static nonisolated func menuBarScore(query: String, name: String, owner: String) -> Int? {
         [Fuzzy.score(query, name), Fuzzy.score(query, owner).map { $0 - 10 }].compactMap(\.self).max()
+    }
+}
+
+extension Collection {
+    /// The elements a score keeps, the highest first. Equal scores keep the order they came in.
+    nonisolated func ranked(limit: Int? = nil, by score: (Element) -> Int?) -> [Element] {
+        compactMap { element in score(element).map { (element, $0) } }
+            .min(count: limit ?? count) { $0.1 > $1.1 }
+            .map(\.0)
     }
 }

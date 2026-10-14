@@ -155,6 +155,36 @@ describe("Form", () => {
     await fire(submit, "onSubmit", { name: "Ada", due: { $date: "2026-01-02T00:00:00.000Z" } });
     expect(submitted).toEqual([{ name: "Ada", due: new Date("2026-01-02T00:00:00.000Z") }]);
   });
+
+  // What @raycast/utils' useForm does on a failed validation: focus the first invalid field through its ref,
+  // then set the errors. A ref that cannot focus throws before the errors are set, so they never show.
+  test("a field's ref answers focus and reset, so a failed validation shows its error", async () => {
+    type FieldRef = { focus: () => void; reset: () => void };
+    const refs: Record<string, FieldRef | null> = {};
+    const Invalid = () => {
+      const [error, setError] = useState<string>();
+      const onSubmit = () => {
+        refs.name?.focus();
+        setError("The field is required");
+      };
+      return h(
+        Form,
+        { actions: h(ActionPanel, null, h(Action.SubmitForm, { onSubmit })) },
+        h(Form.TextField, { id: "name", error, ref: (ref: FieldRef | null) => void (refs.name = ref) }),
+        h(Form.Checkbox, { id: "agree", label: "Agree", ref: (ref: FieldRef | null) => void (refs.agree = ref) }),
+      );
+    };
+    const tree = await showScreen(h(Invalid));
+    expect(find(tree, "Form.TextField").props).toEqual({ id: "name" });
+
+    const after = await fireForRender(find(tree, "Action"), "onSubmit", {});
+    expect(find(after, "Form.TextField").props).toEqual({ id: "name", error: "The field is required" });
+    refs.agree?.reset();
+    expect(sent()).toEqual([
+      { type: "focusField", id: "name" },
+      { type: "resetField", id: "agree" },
+    ]);
+  });
 });
 
 describe("Grid and MenuBarExtra", () => {
@@ -213,6 +243,32 @@ describe("ActionPanel", () => {
     expect(find(panel.children[1], "Action").props).toEqual({ title: "Delete", style: "destructive" });
     expect(panel.children[2].props).toEqual({ title: "Share", icon: "icon:Link" });
     expect(titles(findAll(panel.children[2], "Action"))).toEqual(["Mail", "Message"]);
+  });
+
+  // The form extensions write for both platforms. The app reads { modifiers, key } only, so it is sent the Mac's.
+  test("a shortcut given per platform reaches the app as the Mac's, and as none when there is only one for Windows", async () => {
+    const copy = { macOS: { modifiers: ["cmd"], key: "c" }, Windows: { modifiers: ["ctrl"], key: "c" } };
+    const tree = await showScreen(
+      h(Detail, {
+        markdown: "",
+        actions: h(
+          ActionPanel,
+          null,
+          h(Action, { title: "Plain", shortcut: copy }),
+          h(Action.CopyToClipboard, { title: "Built In", content: "x", shortcut: copy }),
+          h(Action.SubmitForm, { title: "Submit", shortcut: copy }),
+          h(ActionPanel.Submenu, { title: "Submenu", shortcut: copy }),
+          h(Action, { title: "Windows Only", shortcut: { Windows: { modifiers: ["ctrl"], key: "c" } } }),
+        ),
+      }),
+    );
+    const [plain, builtIn, submit, windowsOnly] = findAll(tree, "Action");
+    const shortcuts = [plain, builtIn, submit, find(tree, "ActionPanel.Submenu")].map((node) => node.props.shortcut);
+    expect(shortcuts).toEqual(Array(4).fill({ modifiers: ["cmd"], key: "c" }));
+    expect(windowsOnly.props).toEqual({ title: "Windows Only" });
+
+    const menu = await showScreen(h(MenuBarExtra, null, h(MenuBarExtra.Item, { title: "One", shortcut: copy })));
+    expect(find(menu, "MenuBarExtra.Item").props.shortcut).toEqual({ modifiers: ["cmd"], key: "c" });
   });
 });
 

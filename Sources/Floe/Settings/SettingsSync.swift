@@ -5,6 +5,7 @@
 //  Copyright (Floe) © 2026 René Jiménez
 //  Licensed under the GNU AGPLv3
 
+import Algorithms
 import Foundation
 
 /// Which of Floe's stored settings sync between Macs, and how each becomes records. A setting in neither
@@ -70,6 +71,7 @@ enum SettingsSync {
         "includeRaycastExtensions": "reads a folder on this Mac and loads the code in it",
         "disabledExtensions": "switching an extension back on runs its code, which is decided on each Mac",
         "disabledCommands": "switching a command back on runs its code, which is decided on each Mac",
+        "enabledCommands": "switching a command on runs its code, which is decided on each Mac",
         "menuBarCommands": "the commands running in this Mac's menu bar",
         "menuBarItemNames": "keyed by where an item sits in this Mac's menu bar",
         "searchSources": "each source was switched on here after macOS asked for access",
@@ -218,9 +220,7 @@ nonisolated enum OrderedSync {
     /// The order may name members that are gone; it never adds or removes one.
     static func arranged<Member: Hashable>(_ members: [Member], by order: [Member]) -> [Member] {
         let held = Set(members)
-        var seen: Set<Member> = []
-        let named = order.filter { held.contains($0) && seen.insert($0).inserted }
-        return named + members.filter { seen.insert($0).inserted }
+        return Array((order.filter(held.contains) + members).uniqued())
     }
 }
 

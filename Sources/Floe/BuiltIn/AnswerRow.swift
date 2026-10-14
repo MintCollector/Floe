@@ -21,6 +21,10 @@ nonisolated struct AnswerRow: Hashable, Sendable {
     var text: String
     /// A password: clipboard managers are asked not to keep it.
     var isSecret = false
+    /// Where Return goes when the row has nothing to copy, such as the settings that would make an answer possible.
+    var link: URL?
+    /// What Return's button says when the row has a link.
+    var linkTitle: String?
 
     init(id: String, text: String, subtitle: String? = nil, kind: String, symbol: String, isSecret: Bool = false) {
         self.id = "answer:" + id
@@ -37,8 +41,14 @@ nonisolated struct AnswerRow: Hashable, Sendable {
 struct AnswerRowSearchProvider: SearchProvider {
     /// What a bare `base64` works on. Read only when the query is one of the words that change a text.
     var clipboard: () -> String? = { NSPasteboard.general.string(forType: .string) }
+    var facts = SystemFacts.Readers()
 
     func contribution(for context: SearchContext) -> SearchContribution {
+        // Under the ranked rows: "disk" still opens Disk Utility with Return.
+        let found = SystemFacts.rows(for: context.trimmed, readers: facts)
+        if !found.isEmpty {
+            return SearchContribution(appended: found.map { RootResult(item: .answer($0), section: nil) })
+        }
         guard let row = row(for: context) else { return SearchContribution() }
         return SearchContribution(pinned: [RootResult(item: .answer(row), section: nil)])
     }

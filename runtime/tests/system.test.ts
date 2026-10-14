@@ -87,6 +87,16 @@ describe("toasts and HUD", () => {
     expect(calls).toEqual(["primary", "secondary", "redo"]);
   });
 
+  // An extension may pass the Error it caught as the message. As JSON that is {}, which the app reads as no message.
+  test("a title or message that is not text is sent as text", async () => {
+    const toast = await api.showToast({ style: api.Toast.Style.Failure, title: "Error", message: new Error("model not found") });
+    toast.title = 404 as never;
+    expect(sent("toast").map(({ title, message }) => [title, message])).toEqual([
+      ["Error", "model not found"],
+      ["404", "model not found"],
+    ]);
+  });
+
   test("changing the options object after creating the toast does not change the toast", async () => {
     const options = { title: "Original" };
     const toast = new api.Toast(options);
@@ -312,6 +322,21 @@ describe("Clipboard", () => {
     expect(await read).toEqual({ text: "on the clipboard", html: "<p>on</p>" });
   });
 
+  // An extension reads the copy before the last one, or the last six, by their offsets.
+  test("read and readText name the older copy they want by its offset, and nothing for the current one", async () => {
+    void api.Clipboard.read();
+    void api.Clipboard.readText({ offset: 0 });
+    void api.Clipboard.read({ offset: 1 });
+    void api.Clipboard.readText({ offset: 5 });
+    expect(sent("request").map(({ method, params }) => [method, params])).toEqual([
+      ["clipboard.read", {}],
+      ["clipboard.read", {}],
+      ["clipboard.read", { offset: 1 }],
+      ["clipboard.read", { offset: 5 }],
+    ]);
+    for (const { id } of sent("request")) handleReply({ id, result: { text: "" } });
+  });
+
   test("an empty clipboard reads as undefined text", async () => {
     const text = api.Clipboard.readText();
     handleReply({ id: sent("request")[0].id, result: { text: "" } });
@@ -524,12 +549,29 @@ describe("AI", () => {
     delete process.env.FLOE_DEVELOPMENT;
   });
 
+  test("the appearance is the one the app passes, and dark when it passes none", () => {
+    delete process.env.FLOE_APPEARANCE;
+    expect([api.environment.appearance, api.environment.theme]).toEqual(["dark", "dark"]);
+    process.env.FLOE_APPEARANCE = "light";
+    expect([api.environment.appearance, api.environment.theme]).toEqual(["light", "light"]);
+    delete process.env.FLOE_APPEARANCE;
+  });
+
   test("extensions can use AI when the app found a tool for it", () => {
     delete process.env.FLOE_AI;
     expect(api.environment.canAccess(api.AI)).toBe(false);
     process.env.FLOE_AI = "1";
     expect(api.environment.canAccess(api.AI)).toBe(true);
     expect(api.environment.canAccess(api.OAuth)).toBe(false);
+  });
+
+  // An extension that asks before it reads the selection or the clipboard gives up on a no.
+  test("extensions can use the selection and the clipboard, which the app answers", () => {
+    delete process.env.FLOE_AI;
+    expect([api.getSelectedText, api.getSelectedFinderItems, api.Clipboard].map(api.environment.canAccess)).toEqual([true, true, true]);
+    expect(api.environment.canAccess("AI")).toBe(false);
+    process.env.FLOE_AI = "1";
+    expect(api.environment.canAccess("AI")).toBe(true);
   });
 });
 
@@ -606,6 +648,25 @@ describe("constants", () => {
     expect(JSON.stringify({ icon: api.Icon.Star })).toBe('{"icon":"icon:Star"}');
   });
 
+  // An icon or color picker is built from Object.keys(Icon).
+  test("Icon and Color list the names Raycast has", () => {
+    expect(Object.keys(api.Icon)).toHaveLength(478);
+    expect(Object.entries(api.Icon)).toContainEqual(["Number07", "icon:Number07"]);
+    expect("XMarkCircle" in api.Icon).toBe(true);
+    expect("SomethingRaycastAddsLater" in api.Icon).toBe(false);
+    expect(Object.keys(api.Color)).toEqual(["Blue", "Green", "Magenta", "Orange", "Purple", "Red", "Yellow", "PrimaryText", "SecondaryText"]);
+    expect(Object.values(api.Color)).toContain("color:SecondaryText");
+  });
+
+  test("isFullDay tells a day from a time by local midnight, on the form's picker and the action's", () => {
+    for (const isFullDay of [api.Form.DatePicker.isFullDay, api.Action.PickDate.isFullDay]) {
+      expect(isFullDay(new Date(2026, 9, 13))).toBe(true);
+      expect(isFullDay(new Date(2026, 9, 13, 9, 30))).toBe(false);
+      expect(isFullDay(null)).toBe(false);
+      expect(isFullDay()).toBe(false);
+    }
+  });
+
   test("the enums extensions compare against have Raycast's values", () => {
     expect(api.Image.Mask).toEqual({ Circle: "circle", RoundedRectangle: "roundedRectangle" });
     expect(api.Alert.ActionStyle.Destructive).toBe("destructive");
@@ -614,6 +675,7 @@ describe("constants", () => {
     expect(api.OAuth.RedirectMethod.Web).toBe("web");
     expect(api.Keyboard.Shortcut.Common.Copy).toEqual({ modifiers: ["cmd", "shift"], key: "c" });
     expect(api.Keyboard.Shortcut.Common.Refresh).toEqual({ modifiers: ["cmd"], key: "r" });
+    expect(api.Keyboard.Shortcut.Common.Save).toEqual({ modifiers: ["cmd"], key: "s" });
   });
 });
 

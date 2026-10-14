@@ -176,6 +176,84 @@ describe("bundle", () => {
     expect(find(tree, "List.Item").props.title).toBe("from the bundle");
   });
 
+  // Raycast builds each command into one file at the extension's root, so that is where an extension
+  // expects __dirname to be, and where it looks for its assets from a file deep in src.
+  test("a source file's __dirname is the extension's folder, as in the bundle Raycast builds", async () => {
+    const extDir = makeExtension(
+      {
+        "src/where.ts": 'import { place } from "./core/devices/place";\nexport default () => place;',
+        "src/core/devices/place.ts":
+          'import fs from "node:fs";\nimport path from "node:path";\nexport const place = { dir: __dirname, file: __filename, script: fs.readFileSync(path.resolve(__dirname, "assets/scripts/hello.applescript"), "utf8") };',
+        "assets/scripts/hello.applescript": 'return "hello"',
+      },
+      "where",
+    );
+    const place = (await import(await bundle(findEntry()))).default();
+
+    expect(place.dir).toBe(extDir);
+    expect(place.file).toBe(path.join(extDir, "where.js"));
+    expect(place.script).toBe('return "hello"');
+  });
+
+  // Raycast builds to CommonJS, where a name a module does not export is undefined. As an ES module the same
+  // import stops the command before it starts: "Export named 'EventEmitter' not found in module 'node:stream'".
+  test("a name only CommonJS finds on a Node module is imported, and one no module has is undefined", async () => {
+    makeExtension(
+      {
+        "src/emit.ts":
+          'import { EventEmitter } from "stream";\nimport { Readable, nothingByThisName } from "node:stream";\nexport default () => ({ heard: new EventEmitter().listenerCount("data"), readable: typeof Readable, missing: typeof nothingByThisName });',
+      },
+      "emit",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toEqual({ heard: 0, readable: "function", missing: "undefined" });
+  });
+
+  test("a command with a top-level await, which CommonJS cannot hold, is still built", async () => {
+    makeExtension({ "src/waits.ts": "const value = await Promise.resolve(7);\nexport default () => value;" }, "waits");
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toBe(7);
+  });
+
+  // An extension imports a .wasm file and instantiates what it gets; some spell the import "?module".
+  // Bun alone gives the file's name for the first and cannot resolve the second.
+  test("an imported .wasm file is its compiled module, with or without ?module", async () => {
+    const extDir = makeExtension(
+      {
+        "src/count.ts": `import plain from "wpkg/answer.wasm";
+import marked from "wpkg/answer.wasm?module";
+export default async () => {
+  const instance = (await WebAssembly.instantiate(plain, {})) as unknown as WebAssembly.Instance;
+  return { plain: plain instanceof WebAssembly.Module, marked: marked instanceof WebAssembly.Module, answer: (instance.exports.answer as () => number)() };
+};`,
+        "node_modules/wpkg/package.json": '{ "name": "wpkg", "version": "1.0.0" }',
+      },
+      "count",
+    );
+    // A module that exports answer(), which returns 42.
+    const wasm = "0061736d010000000105016000017f03020100070a0106616e7377657200000a06010400412a0b";
+    fs.writeFileSync(path.join(extDir, "node_modules/wpkg/answer.wasm"), Buffer.from(wasm, "hex"));
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(await command()).toEqual({ plain: true, marked: true, answer: 42 });
+  });
+
+  // A bundle cached from before was built as an ES module, and one of those fails only when it is imported.
+  test("builds again over a bundle cached from before commands were built as CommonJS", async () => {
+    makeExtension({ "src/older.ts": "export default () => 1;" }, "older");
+    const output = await bundle(findEntry());
+    const stamp = path.join(path.dirname(output), "older.fingerprint");
+    const { formats, ...before } = JSON.parse(fs.readFileSync(stamp, "utf8"));
+    expect(formats).toEqual(["cjs", "esm"]);
+    fs.writeFileSync(stamp, JSON.stringify(before));
+    fs.appendFileSync(output, "\n// marker");
+
+    await bundle(findEntry());
+    expect(fs.readFileSync(output, "utf8")).not.toContain("// marker");
+  });
+
   test("reuses the cached bundle until a source file changes", async () => {
     const extDir = makeExtension({ "src/cached.ts": "export default () => 1;" }, "cached");
     const entry = findEntry();

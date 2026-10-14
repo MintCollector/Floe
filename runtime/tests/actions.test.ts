@@ -72,6 +72,12 @@ describe("built-in actions", () => {
     expect(copied).toEqual([42]);
   });
 
+  // A password manager's copy says it is one, and the app is told, so no clipboard history keeps it.
+  test("a concealed copy tells the app it is one", async () => {
+    await fire(await showAction(h(Action.CopyToClipboard, { content: "hunter2", concealed: true })), "onAction");
+    expect(sent("copy")).toEqual([{ type: "copy", text: "hunter2", concealed: true }]);
+  });
+
   test("Paste sends the text to paste and tells the extension", async () => {
     const pasted: unknown[] = [];
     const action = await showAction(h(Action.Paste, { content: "snippet", onPaste: (content: unknown) => pasted.push(content) }));
@@ -159,5 +165,14 @@ describe("built-in actions", () => {
     await fire(findAll(tree, "Action")[1], "onAction");
     expect(runs).toEqual(["second"]);
     expect(Action.PickDate.Type).toEqual({ Date: "date", DateTime: "dateTime" });
+  });
+
+  // The name Action had before, which extensions are still written with.
+  test("ActionPanel.Item is a plain Action", async () => {
+    const runs: string[] = [];
+    const action = await showAction(h(ActionPanel.Item, { title: "Open Tab", onAction: () => runs.push("opened") }));
+    expect(action.props).toEqual({ title: "Open Tab" });
+    await fire(action, "onAction");
+    expect(runs).toEqual(["opened"]);
   });
 });

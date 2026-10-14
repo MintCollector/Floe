@@ -30,13 +30,10 @@ extension LauncherModel {
         if case .definition = item {
             return String(localized: "Open in Dictionary", bundle: .floe, comment: "Dictionary is the name of Apple's app.")
         }
-        if case .answer = item {
-            return String(localized: "Copy to Clipboard", bundle: .floe)
+        if case let .answer(row) = item {
+            return row.link == nil ? String(localized: "Copy to Clipboard", bundle: .floe) : row.linkTitle ?? String(localized: "Open", bundle: .floe, comment: "A verb on a button: open the selected result.")
         }
-        if case let .window(row) = item {
-            return title(for: row)
-        }
-        return draftTitle(for: item)
+        return keywordRowTitle(for: item) ?? draftTitle(for: item)
     }
 
     /// What Return does on a row that makes or stops something from what was typed. Nil for any other row.
@@ -80,9 +77,7 @@ extension LauncherModel {
             undo(receipt)
         } else if case let .receipt(receipt) = item {
             showDetails(of: receipt)
-        } else if case let .window(row) = item {
-            open(row)
-        } else {
+        } else if !openKeywordRow(item) {
             openTyped(item)
         }
     }
@@ -118,6 +113,12 @@ extension LauncherModel {
             reach(bookmark.url)
         }
         guard case let .answer(row) = item else { return }
+        if let link = row.link {
+            hidePanel()
+            reset()
+            NSWorkspace.shared.open(link)
+            return
+        }
         if row.isSecret {
             NSPasteboard.general.copySecret(row.text)
         } else {
@@ -148,10 +149,7 @@ extension LauncherModel {
         if case let .definition(definition) = item {
             return [ItemAction(title: String(localized: "Copy Definition", bundle: .floe), symbol: "doc.on.doc") { [weak self] in self?.copy(definition) }]
         }
-        if case let .window(.window(window)) = item {
-            return windowActions(for: window)
-        }
-        return shellActions(for: item)
+        return keywordRowActions(for: item) ?? shellActions(for: item)
     }
 
     /// Hands a note to the app the user chose. What is written into a folder of notes leaves a receipt.

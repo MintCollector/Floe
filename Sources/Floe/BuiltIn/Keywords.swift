@@ -56,6 +56,7 @@ extension KeywordHint {
         KeywordHint(keyword: "tabs", example: "tabs invoice", detail: String(localized: "Switch to an open browser tab", bundle: .floe), need: .source(SearchSourceInfo.tabs.id)),
         KeywordHint(keyword: OpenWindows.keyword, example: "windows invoice", detail: String(localized: "Switch to an open window", bundle: .floe)),
         KeywordHint(keyword: Bookmarks.keyword, example: "bookmarks invoice", detail: String(localized: "Open a bookmark of Chrome, Brave, Edge, Arc, Vivaldi, Dia or Helium", bundle: .floe, comment: "The names are browsers.")),
+        KeywordHint(keyword: Homebrew.keyword, example: "brew ripgrep", detail: String(localized: "Install or upgrade a Homebrew package in your terminal", bundle: .floe, comment: "Homebrew is the name of a package manager.")),
         KeywordHint(keyword: RecentDocuments.keyword, example: "recent preview", detail: String(localized: "List the recently used files an application opens", bundle: .floe)),
         KeywordHint(keyword: "ssh", example: "ssh web", detail: String(localized: "Connect to an SSH host", bundle: .floe), need: .sshHosts),
         KeywordHint(keyword: "shortcuts", example: "shortcuts mail", detail: String(localized: "Run one of your Shortcuts", bundle: .floe, comment: "Shortcuts are what the user makes in Apple's Shortcuts app."), need: .shortcuts),
@@ -63,6 +64,12 @@ extension KeywordHint {
         KeywordHint(keyword: Processes.portKeyword, example: "port 3000", detail: String(localized: "See what is listening on a port", bundle: .floe)),
         KeywordHint(keyword: WordDefinition.keyword, example: "define tide", detail: String(localized: "Look a word up in the dictionary", bundle: .floe)),
         KeywordHint(keyword: WorldTime.keyword, example: "time in tokyo", detail: String(localized: "See the time in another city", bundle: .floe)),
+        KeywordHint(keyword: SoundDevices.keyword(for: .output), example: "output airpods", detail: String(localized: "Choose the device sound plays through", bundle: .floe)),
+        KeywordHint(keyword: SoundDevices.keyword(for: .input), example: "input macbook", detail: String(localized: "Choose the microphone", bundle: .floe)),
+        KeywordHint(keyword: ScreenTools.qrKeyword, example: "qr https://example.com", detail: String(localized: "Make a QR code to copy or save", bundle: .floe)),
+        KeywordHint(keyword: Places.keyword, example: "maps coffee in lisbon", detail: String(localized: "Find a place with Apple Maps. What you type is sent to Apple", bundle: .floe, comment: "Apple Maps is the name of Apple's service.")),
+        KeywordHint(keyword: Translate.keyword, example: "translate hola mundo", detail: String(localized: "Translate a text with Apple's translation, on this Mac. Also translate to german good morning", bundle: .floe, comment: "The words after Also are typed as they are and stay in English.")),
+        KeywordHint(keyword: SystemFacts.battery.rawValue, example: "battery", detail: String(localized: "See the battery's charge. Also disk, memory and ip", bundle: .floe, comment: "The last three words are typed as they are and stay in English.")),
         KeywordHint(keyword: Generators.uuidKeyword, example: "uuid", detail: String(localized: "Make a new UUID", bundle: .floe, comment: "A UUID is a random identifier programmers use.")),
         KeywordHint(keyword: Generators.passwordKeyword, example: "password 24", detail: String(localized: "Make a random password", bundle: .floe)),
         KeywordHint(keyword: Generators.loremKeyword, example: "lorem 2", detail: String(localized: "Make paragraphs of placeholder text", bundle: .floe)),
@@ -115,10 +122,7 @@ struct KeywordSearchScope: SearchScope {
 
     /// The word alone lists everything, as `receipts` does.
     func text(in context: SearchContext) -> String? {
-        if let text = context.text(after: keyword) {
-            return text
-        }
-        return context.trimmed.lowercased() == keyword ? "" : nil
+        context.text(afterOrAlone: keyword)
     }
 
     func results(for text: String, context: SearchContext) -> [RootItem] {

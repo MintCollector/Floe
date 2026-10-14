@@ -69,6 +69,19 @@ final class ClipboardHistoryModelTests {
         #expect(model.selection == 1)
     }
 
+    @Test func aCopyArrivingWhileTheListIsOpenLeavesTheSelectionOnTheSameCopy() async {
+        let model = await makeModel()
+        model.selection = 1
+        store.record(ClipboardCapture(content: .text("delta"), date: Date(timeIntervalSince1970: 10), sourceApp: "Tests"))
+        model.entriesChanged()
+        #expect(model.selectedEntry?.text == "beta")
+        if let beta = model.selectedEntry {
+            store.delete(beta)
+        }
+        model.entriesChanged()
+        #expect(model.selectedEntry?.text == "alpha", "a copy that is gone leaves the selection in its place")
+    }
+
     @Test func pinningACopyPutsItFirst() async throws {
         let model = await makeModel()
         model.selection = 2
@@ -123,5 +136,20 @@ final class ClipboardHistoryModelTests {
         #expect(launcher.isShowingClipboardHistory)
         #expect(try launcher.handleKey(key(53)))
         #expect(!launcher.isShowingClipboardHistory)
+    }
+
+    @Test func theCopiesAreGroupedByDayNewestDayFirstAndKeepTheirOrderInsideADay() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let copy: (String, Int, TimeInterval) -> ClipboardEntry = { text, daysAgo, seconds in
+            let day = calendar.date(byAdding: .day, value: -daysAgo, to: today) ?? today
+            return ClipboardEntry(id: UUID(), kind: .text, text: text, date: day.addingTimeInterval(seconds), pinned: false)
+        }
+        let entries = [copy("five days, late", 5, 90), copy("today, early", 0, 1), copy("three days", 3, 5), copy("yesterday", 1, 60), copy("today, late", 0, 2), copy("five days, early", 5, 30)]
+        let groups = ClipboardHistoryView.dayGroups(entries, calendar: calendar)
+        #expect(groups.map { $0.entries.map(\.text) } == [["today, early", "today, late"], ["yesterday"], ["three days"], ["five days, late", "five days, early"]])
+        #expect(groups.prefix(2).map(\.title) == [String(localized: "Today", bundle: .floe), String(localized: "Yesterday", bundle: .floe)])
+        #expect(Set(groups.map(\.title)).count == 4, "each day under its own heading")
+        #expect(ClipboardHistoryView.dayGroups([], calendar: calendar).isEmpty)
     }
 }

@@ -11,17 +11,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import React from "react";
-import { ctx, handlePop, handlePopToRoot, handleReply, handleReplyChunk, send, type Manifest } from "./bridge";
+import { ctx, handlePop, handlePopToRoot, handleReply, handleReplyChunk, reserveStdout, send, type Manifest } from "./bridge";
 import { dispatchEvent, render, renderInFull, toError } from "./renderer";
 import { NavigationRoot, commandDrewItself, handleToastAction } from "./api/index";
 import { bundle, findEntry } from "./build";
 import { flushCaches } from "./cache";
+import { withNodeCause } from "./fetch";
 import { lineSplitter } from "./lines";
 import { isRecording, observe } from "./access";
 
 const log = (...parts: unknown[]) =>
   process.stderr.write(parts.map((part) => (typeof part === "string" ? part : Bun.inspect(part))).join(" ") + "\n");
 console.log = console.info = console.warn = console.error = console.debug = log;
+reserveStdout();
 
 const [extDir, commandName, argumentsJSON] = process.argv.slice(2);
 if (!extDir || !commandName) {
@@ -94,6 +96,8 @@ const launchProps = {
   arguments: argumentsJSON ? JSON.parse(argumentsJSON) : {},
   fallbackText: undefined,
 };
+
+globalThis.fetch = withNodeCause(globalThis.fetch);
 
 try {
   const entry = await bundle(findEntry());

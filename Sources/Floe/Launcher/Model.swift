@@ -73,6 +73,8 @@ final class LauncherModel: ObservableObject {
     @Published var isShowingClipboardHistory = false
     /// The clipboard history view's own state. Not published: its changes redraw its view only.
     lazy var clipboardHistory = ClipboardHistoryModel(usage: usage)
+    /// The notes of the user's folder, while the panel shows them instead of the root search.
+    @Published var noteDesk: NoteDeskModel?
     /// The question on screen and its answer, while the panel shows them instead of the root search.
     @Published var askAI: AskAIModel?
     /// Answers the question. A test replaces it: the real thing reaches the chosen AI source.
@@ -189,7 +191,7 @@ final class LauncherModel: ObservableObject {
     private var sourceWatcher: DirectoryWatcher?
     @Published private(set) var apps: [AppEntry] = []
     var commands: [ExtensionCommand] {
-        CommandLookup.enabled(allCommands, disabledExtensions: settings.disabledExtensions, disabledCommands: settings.disabledCommands)
+        CommandLookup.enabled(allCommands, disabledExtensions: settings.disabledExtensions, disabledCommands: settings.disabledCommands, enabledCommands: settings.enabledCommands)
     }
 
     /// Every command that may run on its own: a menu-bar command only once it was put in the menu bar.
@@ -767,7 +769,7 @@ final class LauncherModel: ObservableObject {
             showHUD(message["title"] as? String ?? "")
             hidePanel()
         case "copy":
-            copy(text: message["text"] as? String ?? "", html: message["html"] as? String, file: message["file"] as? String)
+            copy(text: message["text"] as? String ?? "", html: message["html"] as? String, file: message["file"] as? String, concealed: message["concealed"] as? Bool ?? false)
         case "paste":
             paste(text: message["text"] as? String ?? "", html: message["html"] as? String, file: message["file"] as? String)
         case "open":
@@ -818,21 +820,11 @@ final class LauncherModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(delay), execute: work)
     }
 
-    /// Cancels deferred reset and refreshes foreground catalogs, permissions and stale search data.
+    /// Cancels the deferred reset. What is read again for the search waits for panelDidShow.
     func panelWillShow() {
         isPanelShown = true
         pendingReset?.cancel()
         pendingReset = nil
-        reloadScripts()
-        reloadSSHHosts()
-        reloadShortcuts()
-        // A grant made in System Settings with no request from Floe is noticed here.
-        menuBarSearch.warm()
-        ExchangeRateUpdater.shared.refreshIfStale()
-        reloadCheckpoints()
-        if FileIndexService.shared.state != .off {
-            RecentFileUse.shared.refreshIfStale()
-        }
     }
 
     /// Runs the command that failed again, with the same arguments.
@@ -863,13 +855,14 @@ final class LauncherModel: ObservableObject {
         isShowingClipboardHistory = false
         isSearchingFiles = false
         fileSearch.cancel()
+        closeNoteDesk()
         closeAskAI()
         recalledQuery = nil
         query = ""
     }
 
-    private func copy(text: String, html: String? = nil, file: String? = nil) {
-        PasteboardContent.write(text: text, html: html, file: file)
+    private func copy(text: String, html: String? = nil, file: String? = nil, concealed: Bool = false) {
+        PasteboardContent.write(text: text, html: html, file: file, concealed: concealed)
     }
 
     func paste(text: String, html: String? = nil, file: String? = nil) {
@@ -892,7 +885,7 @@ final class LauncherModel: ObservableObject {
         case "hud":
             showHUD(message["title"] as? String ?? "")
         case "copy":
-            copy(text: message["text"] as? String ?? "", html: message["html"] as? String, file: message["file"] as? String)
+            copy(text: message["text"] as? String ?? "", html: message["html"] as? String, file: message["file"] as? String, concealed: message["concealed"] as? Bool ?? false)
         case "paste":
             // A background run never takes the keyboard from the user; it only copies.
             copy(text: message["text"] as? String ?? "", html: message["html"] as? String, file: message["file"] as? String)
@@ -909,7 +902,7 @@ final class LauncherModel: ObservableObject {
             ?? URL(fileURLWithPath: (target as NSString).expandingTildeInPath)
         if let application, let app = applicationURL(for: application) {
             linkOpener.open(url, app)
-        } else {
+        } else if !runCommandLink(url) {
             openLink(url)
         }
     }

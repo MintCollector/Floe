@@ -9,11 +9,12 @@
 // everything else either runs locally in Bun or is forwarded to the Swift app over the bridge.
 import fs from "node:fs";
 import path from "node:path";
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ctx, request, send, setPopHandler, setPopToRootHandler } from "../bridge";
 import { flushCaches } from "../cache";
 import { createLocalStorage, storagePersistence } from "../local-storage";
 import { render as mount } from "../renderer";
+import { colorNames, iconNames } from "./names";
 
 const h = React.createElement;
 // The API is promise-based throughout; most calls here finish synchronously.
@@ -24,9 +25,13 @@ type Props = Record<string, any>;
 function slot(name: string, element: unknown) {
   return element ? h("_slot", { name, key: `_slot_${name}` }, element as React.ReactNode) : null;
 }
+// A shortcut can be given per platform, as { macOS, Windows }. The app reads { modifiers, key }, so it gets the Mac's.
+const macShortcut = (shortcut: any) =>
+  shortcut && typeof shortcut === "object" && ("macOS" in shortcut || "Windows" in shortcut) ? shortcut.macOS : shortcut;
 function host(type: string, slots: string[] = []) {
   const component = (props: Props) => {
     const { children, ...rest } = props;
+    if (rest.shortcut) rest.shortcut = macShortcut(rest.shortcut);
     const slotted = slots.map((name) => {
       const element = rest[name];
       delete rest[name];
@@ -141,15 +146,37 @@ export const Grid = Object.assign(host("Grid", ["actions", "searchBarAccessory"]
 
 export const Detail = Object.assign(host("Detail", ["actions", "metadata"]), { Metadata: metadata("Detail") });
 
+// A field's ref answers focus() and reset(), as Raycast's does. @raycast/utils' useForm focuses the first invalid
+// field before it sets the errors, so a ref that is the bare node throws and the errors never show.
+function field(type: string) {
+  const component = ({ ref, ...props }: Props) => {
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: () => send({ type: "focusField", id: props.id }),
+        reset: () => send({ type: "resetField", id: props.id }),
+      }),
+      [props.id],
+    );
+    return h(type, props);
+  };
+  component.displayName = type;
+  return component as any;
+}
+
+// A date picked without a time is taken to be its day's local midnight.
+const isFullDay = (date?: Date | null) =>
+  !!date && date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
+
 export const Form = Object.assign(host("Form", ["actions", "searchBarAccessory"]), {
-  TextField: host("Form.TextField"),
-  PasswordField: host("Form.PasswordField"),
-  TextArea: host("Form.TextArea"),
-  Checkbox: host("Form.Checkbox"),
-  DatePicker: Object.assign(host("Form.DatePicker"), { Type: { Date: "date", DateTime: "dateTime" } }),
-  Dropdown: Object.assign(host("Form.Dropdown"), { Item: host("Dropdown.Item"), Section: host("Dropdown.Section") }),
-  TagPicker: Object.assign(host("Form.TagPicker"), { Item: host("Form.TagPicker.Item") }),
-  FilePicker: host("Form.FilePicker"),
+  TextField: field("Form.TextField"),
+  PasswordField: field("Form.PasswordField"),
+  TextArea: field("Form.TextArea"),
+  Checkbox: field("Form.Checkbox"),
+  DatePicker: Object.assign(field("Form.DatePicker"), { Type: { Date: "date", DateTime: "dateTime" }, isFullDay }),
+  Dropdown: Object.assign(field("Form.Dropdown"), { Item: host("Dropdown.Item"), Section: host("Dropdown.Section") }),
+  TagPicker: Object.assign(field("Form.TagPicker"), { Item: host("Form.TagPicker.Item") }),
+  FilePicker: field("Form.FilePicker"),
   Description: host("Form.Description"),
   Separator: host("Form.Separator"),
   LinkAccessory: host("Form.LinkAccessory"),
@@ -171,7 +198,7 @@ function action(defaultTitle: string, defaultIcon: string, run: (props: Props, n
     return h("Action", {
       title: props.title ?? defaultTitle,
       icon: props.icon ?? `icon:${defaultIcon}`,
-      shortcut: props.shortcut,
+      shortcut: macShortcut(props.shortcut),
       style: props.style,
       onAction: () => run(props, navigation),
     });
@@ -191,7 +218,7 @@ export const Action = Object.assign(BaseAction, {
     await closeMainWindow();
   }),
   CopyToClipboard: action("Copy to Clipboard", "Clipboard", async (props) => {
-    await Clipboard.copy(props.content);
+    await Clipboard.copy(props.content, { concealed: props.concealed });
     props.onCopy?.(props.content);
     await showHUD("Copied to Clipboard");
   }),
@@ -213,17 +240,19 @@ export const Action = Object.assign(BaseAction, {
     props.onTrash?.(props.paths);
   }),
   SubmitForm: (props: Props) =>
-    h("Action", { title: props.title ?? "Submit", icon: props.icon, shortcut: props.shortcut, isSubmit: true, onSubmit: props.onSubmit }),
+    h("Action", { title: props.title ?? "Submit", icon: props.icon, shortcut: macShortcut(props.shortcut), isSubmit: true, onSubmit: props.onSubmit }),
   OpenWith: action("Open With", "Finder", (props) => open(props.path)),
   ToggleQuickLook: action("Quick Look", "Eye", () => unsupported("Quick Look")),
   CreateSnippet: action("Create Snippet", "Document", () => unsupported("Snippets")),
   CreateQuicklink: action("Create Quicklink", "Link", () => unsupported("Quicklinks")),
   PickDate: Object.assign(action("Pick Date", "Calendar", () => unsupported("Date picker")), {
     Type: { Date: "date", DateTime: "dateTime" },
+    isFullDay,
   }),
 });
 
 export const ActionPanel = Object.assign(host("ActionPanel"), {
+  Item: BaseAction,
   Section: host("ActionPanel.Section"),
   Submenu: host("ActionPanel.Submenu"),
 });
@@ -233,6 +262,9 @@ export const ActionPanel = Object.assign(host("ActionPanel"), {
 function unsupported(feature: string) {
   return showToast({ style: Toast.Style.Failure, title: `${feature} isn't supported yet` });
 }
+
+// Extensions hand a caught Error to a toast as its text. As JSON it would be {}, which the app shows as nothing.
+const toastText = (value: unknown) => (value == null ? undefined : value instanceof Error ? value.message : String(value));
 
 let nextToastId = 1;
 const liveToasts = new Map<number, Toast>();
@@ -246,7 +278,7 @@ export class Toast {
   }
   private sync(hidden = false) {
     const { style, title, message, primaryAction, secondaryAction } = this.options;
-    send({ type: "toast", id: this.id, style: style ?? "success", title: title ?? "", message, hidden,
+    send({ type: "toast", id: this.id, style: style ?? "success", title: toastText(title) ?? "", message: toastText(message), hidden,
       primaryTitle: (primaryAction as Props | undefined)?.title,
       secondaryTitle: (secondaryAction as Props | undefined)?.title });
   }
@@ -359,10 +391,13 @@ function clipboardParams(content: ClipboardContent): { text?: string; html?: str
   return { text: typeof content === "string" ? content : "" };
 }
 
+// An offset of 1 to 5 asks for a copy before the current one. The current one is asked for as it always was.
+const olderCopy = (options?: Props) => (Number.isInteger(options?.offset) && options?.offset > 0 ? { offset: options.offset } : {});
+
 export const Clipboard = {
-  copy(content: ClipboardContent, _options?: Props): Promise<void> {
+  copy(content: ClipboardContent, options?: Props): Promise<void> {
     const params = clipboardParams(content);
-    send({ type: "copy", text: params.text ?? "", html: params.html, file: params.file });
+    send({ type: "copy", text: params.text ?? "", html: params.html, file: params.file, ...(options?.concealed === true ? { concealed: true } : {}) });
     return done;
   },
   paste(content: ClipboardContent): Promise<void> {
@@ -370,12 +405,12 @@ export const Clipboard = {
     send({ type: "paste", text: params.text ?? "", html: params.html, file: params.file });
     return done;
   },
-  async readText(_options?: Props): Promise<string | undefined> {
-    const result = await request<{ text: string; html?: string; file?: string }>("clipboard.read");
+  async readText(options?: Props): Promise<string | undefined> {
+    const result = await request<{ text: string; html?: string; file?: string }>("clipboard.read", olderCopy(options));
     return result.text || undefined;
   },
-  async read(_options?: Props): Promise<{ text: string; html?: string; file?: string }> {
-    return request("clipboard.read");
+  async read(options?: Props): Promise<{ text: string; html?: string; file?: string }> {
+    return request("clipboard.read", olderCopy(options));
   },
   clear(): Promise<void> {
     send({ type: "copy", text: "" });
@@ -461,12 +496,15 @@ export const environment = {
   // True only for an extension run from the checkout, as it is in Raycast for one being developed.
   // Extensions switch to sample data and extra logging on it.
   get isDevelopment() { return process.env.FLOE_DEVELOPMENT === "1"; },
-  appearance: "dark",
-  theme: "dark",
+  // What the app looked like when it started this command, which is when an extension picks its pictures.
+  get appearance() { return process.env.FLOE_APPEARANCE === "light" ? "light" : "dark"; },
+  get theme() { return process.env.FLOE_APPEARANCE === "light" ? "light" : "dark"; },
   textSize: "medium",
   get launchType() { return ctx.launchType; },
   // The app sets FLOE_AI when AI.ask has something to answer it: an installed tool or a filled-in API.
-  canAccess: (api: unknown) => api === AI && process.env.FLOE_AI === "1",
+  // The selection and the clipboard it always answers; an extension that asks first must hear yes.
+  canAccess: (api: unknown) =>
+    api === AI || api === "AI" ? process.env.FLOE_AI === "1" : api === Clipboard || api === getSelectedText || api === getSelectedFinderItems,
 };
 
 export function launchCommand(_options: Props): Promise<void> {
@@ -514,12 +552,13 @@ export { OAuth } from "./oauth";
 // Constants
 
 // Icon.Foo → "icon:Foo", Color.Red → "color:Red"; the Swift side maps names to SF Symbols and system colors.
-const named = (prefix: string) =>
-  new Proxy({} as Record<string, string>, {
+// Any name answers, so one Raycast adds later still does; the ones it has are the keys Object.keys(Icon) lists.
+const named = (prefix: string, names: string[]) =>
+  new Proxy(Object.fromEntries(names.map((name) => [name, `${prefix}:${name}`])) as Record<string, string>, {
     get: (_target, key) => (typeof key === "string" ? `${prefix}:${key}` : undefined),
   });
-export const Icon = named("icon");
-export const Color = named("color");
+export const Icon = named("icon", iconNames);
+export const Color = named("color", colorNames);
 export const Image = { Mask: { Circle: "circle", RoundedRectangle: "roundedRectangle" } };
 
 const shortcut = (modifiers: string[], key: string) => ({ modifiers, key });
@@ -541,6 +580,7 @@ export const Keyboard = {
       Refresh: shortcut(["cmd"], "r"),
       Remove: shortcut(["ctrl"], "x"),
       RemoveAll: shortcut(["ctrl", "shift"], "x"),
+      Save: shortcut(["cmd"], "s"),
       ToggleQuickLook: shortcut(["cmd"], "y"),
     },
   },

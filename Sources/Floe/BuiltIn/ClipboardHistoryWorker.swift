@@ -73,15 +73,20 @@ nonisolated struct ClipboardByteLedger {
 final nonisolated class ClipboardHistoryWorker: Sendable {
     enum Event: Sendable {
         case loaded([ClipboardEntry], sizes: [String: Int])
-        case prepared(ClipboardEntry, bytes: Int, epoch: Int)
+        case prepared(ClipboardEntry, sizes: [String: Int], epoch: Int)
         case saved(bytes: Int)
+        /// Formatted copies that could not be written, which the list must stop naming.
+        case unstored([String])
     }
 
     private enum Job: Sendable {
         case load
         case prepare(ClipboardCapture, epoch: Int)
+        case store([String: Data])
         case remove([String])
         case save
+        /// A save once the worker takes it, holding the newest list.
+        case write([ClipboardEntry])
         case signal(DispatchSemaphore)
     }
 
@@ -89,14 +94,21 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
     private struct Queue {
         var jobs: [Job] = []
         var imageBytes = 0
+        /// The newest list waiting to be written; a burst of changes becomes one write.
+        var unsaved: [ClipboardEntry]?
 
         mutating func next() -> Job? {
             guard !jobs.isEmpty else { return nil }
-            let job = jobs.removeFirst()
-            if case let .prepare(capture, _) = job {
+            switch jobs.removeFirst() {
+            case let .prepare(capture, epoch):
                 imageBytes -= capture.imageBytes
+                return .prepare(capture, epoch: epoch)
+            case .save:
+                // Taken with its job, so a list changed from here on is written by a save queued after it.
+                return unsaved.take().map(Job.write) ?? .save
+            case let job:
+                return job
             }
-            return job
         }
 
         /// Over budget, the oldest waiting images go and the newest copy always stays, even alone over it.
@@ -125,15 +137,13 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
     private final class Shared: Sendable {
         let queue = Mutex(Queue())
         let events = Mutex<[Event]>([])
-        /// The newest list waiting to be written; a burst of changes becomes one write.
-        let unsaved = Mutex<[ClipboardEntry]?>(nil)
     }
 
     private let files: ClipboardFiles
     private let maxQueuedBytes: Int
     private let storedPNG: @Sendable (Data) -> Data?
-    private let ticks: AsyncStream<Void>
-    private let tick: AsyncStream<Void>.Continuation
+    /// Its own thread, not the shared task pool: a wait for the worker can never be a wait for a free thread.
+    private let runner = DispatchQueue(label: "org.thaw.floe.clipboard-worker", qos: .utility)
     private let shared = Shared()
     private let wake: AsyncStream<Void>.Continuation
 
@@ -149,38 +159,46 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
         self.files = files
         self.maxQueuedBytes = maxQueuedBytes
         self.storedPNG = storedPNG
-        // The jobs wait in `shared.queue`, where one can be dropped; the stream only says there are some.
-        (ticks, tick) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
         (wakes, wake) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
     }
 
     deinit {
-        tick.finish()
+        wake.finish()
     }
 
-    /// Starts the one task that runs the jobs.
-    func start() {
-        Task.detached { [ticks, files, storedPNG, shared, wake] in
-            for await _ in ticks {
-                while let job = shared.queue.withLock({ $0.next() }) {
-                    // The pool frees what decoding an image leaves behind before the next job starts.
-                    let events = autoreleasepool { Self.run(job, files: files, storedPNG: storedPNG, shared: shared) }
-                    guard !events.isEmpty else { continue }
-                    shared.events.withLock { $0 += events }
-                    wake.yield()
-                }
+    /// Runs the waiting jobs in order. The jobs wait in shared.queue, where one can be dropped before it starts.
+    private func tick() {
+        runner.async { [files, storedPNG, shared, wake] in
+            while let job = shared.queue.withLock({ $0.next() }) {
+                // The pool frees what decoding an image leaves behind before the next job starts.
+                let events = autoreleasepool { Self.run(job, files: files, storedPNG: storedPNG) }
+                guard !events.isEmpty else { continue }
+                shared.events.withLock { $0 += events }
+                wake.yield()
             }
-            wake.finish()
         }
     }
 
     private func enqueue(_ job: Job) {
         shared.queue.withLock { $0.jobs.append(job) }
-        tick.yield()
+        tick()
     }
 
+    /// Reads the saved list, once for any number of asks still waiting.
     func load() {
-        enqueue(.load)
+        shared.queue.withLock { queue in
+            let waiting = queue.jobs.firstIndex { job in
+                if case .load = job {
+                    true
+                } else {
+                    false
+                }
+            }
+            if waiting == nil {
+                queue.jobs.append(.load)
+            }
+        }
+        tick()
     }
 
     /// Queues a copy, making room for it first: this never waits for the worker.
@@ -193,7 +211,7 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
                 queue.shed(to: maxQueuedBytes)
             }
         }
-        tick.yield()
+        tick()
     }
 
     /// Drops every copy not started yet, so none is decoded or written and its data is freed now.
@@ -210,18 +228,37 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
         }
     }
 
+    /// Writes the formatted copies of an entry already in the list, ahead of a waiting save,
+    /// so the saved list never names a file that is not there yet.
+    func store(_ files: [String: Data]) {
+        guard !files.isEmpty else { return }
+        shared.queue.withLock { queue in
+            let save = queue.jobs.firstIndex { job in
+                if case .save = job {
+                    true
+                } else {
+                    false
+                }
+            }
+            queue.jobs.insert(.store(files), at: save ?? queue.jobs.endIndex)
+        }
+        tick()
+    }
+
     func remove(_ names: [String]) {
-        enqueue(.remove(names))
+        if !names.isEmpty {
+            enqueue(.remove(names))
+        }
     }
 
     func save(_ entries: [ClipboardEntry]) {
-        let alreadyQueued = shared.unsaved.withLock { unsaved in
-            defer { unsaved = entries }
-            return unsaved != nil
+        shared.queue.withLock { queue in
+            if queue.unsaved == nil {
+                queue.jobs.append(.save)
+            }
+            queue.unsaved = entries
         }
-        if !alreadyQueued {
-            enqueue(.save)
-        }
+        tick()
     }
 
     /// Blocks until every job asked for so far has run, or the time is up.
@@ -240,18 +277,22 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
 
     // MARK: Jobs
 
-    private static func run(_ job: Job, files: ClipboardFiles, storedPNG: (Data) -> Data?, shared: Shared) -> [Event] {
+    private static func run(_ job: Job, files: ClipboardFiles, storedPNG: (Data) -> Data?) -> [Event] {
         switch job {
         case .load:
             return [load(files)]
         case let .prepare(capture, epoch):
-            guard let (entry, bytes) = entry(for: capture, files: files, storedPNG: storedPNG) else { return [] }
-            return [.prepared(entry, bytes: bytes, epoch: epoch)]
+            guard let (entry, sizes) = entry(for: capture, files: files, storedPNG: storedPNG) else { return [] }
+            return [.prepared(entry, sizes: sizes, epoch: epoch)]
+        case let .store(written):
+            // A copy that cannot be written is pasted as its plain text.
+            let failed = written.compactMap { name, data in (try? files.write(data, name, false)) == nil ? name : nil }
+            return failed.isEmpty ? [] : [.unstored(failed)]
         case let .remove(names):
             names.forEach(files.remove)
             return []
-        case .save:
-            guard let entries = shared.unsaved.withLock({ $0.take() }), let data = try? JSONEncoder().encode(entries) else { return [] }
+        case let .write(entries):
+            guard let data = try? JSONEncoder().encode(entries) else { return [] }
             do {
                 try files.write(data, ClipboardFiles.historyName, true)
             } catch {
@@ -262,6 +303,9 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
         case let .signal(done):
             done.signal()
             return []
+        case .save:
+            // Queue.next turns a save into a write; one whose list was taken already writes nothing.
+            return []
         }
     }
 
@@ -269,31 +313,33 @@ final nonisolated class ClipboardHistoryWorker: Sendable {
     private static func load(_ files: ClipboardFiles) -> Event {
         let sizes = files.sizes()
         let stored = files.read(ClipboardFiles.historyName).flatMap { try? JSONDecoder().decode([ClipboardEntry].self, from: $0) } ?? []
-        let entries = stored.filter { entry in
-            guard entry.kind == .image, let name = entry.imageFile else { return true }
-            return sizes[name] != nil
+        let entries: [ClipboardEntry] = stored.compactMap { stored in
+            var entry = stored
+            // A formatted copy whose file is gone leaves the text, which is in the list itself.
+            entry.formats = entry.formats?.filter { sizes[$0.value] != nil }
+            guard entry.kind == .image, let name = entry.imageFile else { return entry }
+            return sizes[name] == nil ? nil : entry
         }
         return .loaded(entries, sizes: sizes)
     }
 
-    /// Turns a capture into an entry, converting and storing its image. Nil when there is nothing to keep.
-    private static func entry(for capture: ClipboardCapture, files: ClipboardFiles, storedPNG: (Data) -> Data?) -> (ClipboardEntry, bytes: Int)? {
-        switch capture.content {
-        case let .files(paths):
-            return (.files(paths, date: capture.date, sourceApp: capture.sourceApp), 0)
-        case let .text(string):
-            return ClipboardEntry.text(string, date: capture.date, sourceApp: capture.sourceApp).map { ($0, 0) }
-        case let .image(data, fallbackText):
-            guard let png = storedPNG(data) else {
-                return fallbackText.flatMap { ClipboardEntry.text($0, date: capture.date, sourceApp: capture.sourceApp) }.map { ($0, 0) }
-            }
-            let name = "\(UUID().uuidString).png"
-            do {
-                try files.write(png, name, false)
-            } catch {
-                return nil
-            }
-            return (.image(named: name, png: png, date: capture.date, sourceApp: capture.sourceApp), png.count)
+    /// Turns a capture into an entry and writes its files, converting its image. Nil when there is nothing to keep.
+    private static func entry(for capture: ClipboardCapture, files: ClipboardFiles, storedPNG: (Data) -> Data?) -> (ClipboardEntry, sizes: [String: Int])? {
+        guard case let .image(data, fallbackText) = capture.content else {
+            guard var made = ClipboardEntry.made(from: capture) else { return nil }
+            made.files = made.files.filter { (try? files.write($0.value, $0.key, false)) != nil }
+            made.entry.formats = made.entry.formats?.filter { made.files[$0.value] != nil }
+            return (made.entry, made.files.mapValues(\.count))
         }
+        guard let png = storedPNG(data) else {
+            return fallbackText.flatMap { ClipboardEntry.text($0, date: capture.date, sourceApp: capture.sourceApp) }.map { ($0, [:]) }
+        }
+        let name = "\(UUID().uuidString).png"
+        do {
+            try files.write(png, name, false)
+        } catch {
+            return nil
+        }
+        return (.image(named: name, png: png, date: capture.date, sourceApp: capture.sourceApp), [name: png.count])
     }
 }

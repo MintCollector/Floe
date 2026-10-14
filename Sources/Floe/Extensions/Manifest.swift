@@ -74,12 +74,22 @@ nonisolated struct FieldSpec: Identifiable, Decodable, Sendable {
         self.label = try container.decodeIfPresent(String.self, forKey: .label)
         self.options = try (container.decodeIfPresent(Lossy<Option>.self, forKey: .options)?.elements ?? [])
             .map { ($0.title ?? $0.value, $0.value) }
-        // A default is a string or, for a checkbox, a boolean; the scalar order here is the
-        // precedence, so a whole number stays an Int and only genuine fractions become Double.
-        storedDefault = (try? container.decode(Bool.self, forKey: .defaultValue)).map(DefaultValue.bool)
-            ?? (try? container.decode(String.self, forKey: .defaultValue)).map(DefaultValue.string)
-            ?? (try? container.decode(Int.self, forKey: .defaultValue)).map(DefaultValue.int)
-            ?? (try? container.decode(Double.self, forKey: .defaultValue)).map(DefaultValue.double)
+        // A default given per platform is an object keyed by platform, and the Mac's value is the one taken.
+        storedDefault = Self.scalar(in: container, forKey: .defaultValue)
+            ?? (try? container.nestedContainer(keyedBy: PlatformKeys.self, forKey: .defaultValue)).flatMap { Self.scalar(in: $0, forKey: .macOS) }
+    }
+
+    private enum PlatformKeys: String, CodingKey {
+        case macOS
+    }
+
+    /// A default is a string or, for a checkbox, a boolean; the scalar order here is the
+    /// precedence, so a whole number stays an Int and only genuine fractions become Double.
+    private static func scalar<Key: CodingKey>(in container: KeyedDecodingContainer<Key>, forKey key: Key) -> DefaultValue? {
+        (try? container.decode(Bool.self, forKey: key)).map(DefaultValue.bool)
+            ?? (try? container.decode(String.self, forKey: key)).map(DefaultValue.string)
+            ?? (try? container.decode(Int.self, forKey: key)).map(DefaultValue.int)
+            ?? (try? container.decode(Double.self, forKey: key)).map(DefaultValue.double)
     }
 }
 
@@ -119,6 +129,12 @@ nonisolated struct ExtensionCommand: Identifiable, Sendable {
     let arguments: [FieldSpec]
     let extensionPreferences: [FieldSpec]
     let commandPreferences: [FieldSpec]
+    /// The words the manifest lists for the extension and for this command, which the root search also answers to.
+    var keywords: [String] = []
+    /// The manifest's disabledByDefault: the command stays off until the user switches it on in Settings.
+    var isDisabledByDefault = false
+    /// Who the extension's links name: the manifest's owner, or else its author. Nil when it has neither.
+    var owner: String?
 
     var id: String {
         "\(extensionName)/\(name)"
@@ -134,8 +150,12 @@ nonisolated struct ExtensionCommand: Identifiable, Sendable {
 
     private struct Manifest: Decodable {
         let name: String
+        let owner: String?
+        let author: ManifestAuthor?
         let title: String?
         let icon: String?
+        let keywords: Lossy<String>?
+        let platforms: Lossy<String>?
         let preferences: Lossy<FieldSpec>?
         let commands: Lossy<ManifestCommand>
     }
@@ -145,7 +165,10 @@ nonisolated struct ExtensionCommand: Identifiable, Sendable {
         let title: String?
         let mode: String?
         let interval: String?
+        let disabledByDefault: Bool?
         let icon: String?
+        let keywords: Lossy<String>?
+        let platforms: Lossy<String>?
         let arguments: Lossy<FieldSpec>?
         let preferences: Lossy<FieldSpec>?
     }
@@ -159,13 +182,18 @@ nonisolated struct ExtensionCommand: Identifiable, Sendable {
         return max(value * factor, 10)
     }
 
-    /// The commands a package.json declares that Floe can run: view, no-view and menu-bar.
+    /// Whether a manifest's platforms list, of an extension or of a command, has the Mac in it. No list means every platform.
+    static func runsOnMac(_ platforms: [String]?) -> Bool {
+        platforms?.contains("macOS") ?? true
+    }
+
+    /// The commands a package.json declares that Floe can run: view, no-view and menu-bar, for the Mac.
     static func commands(inManifest data: Data, folder: URL, source: Source) -> [ExtensionCommand] {
-        guard let manifest = try? JSONDecoder().decode(Manifest.self, from: data) else { return [] }
+        guard let manifest = try? JSONDecoder().decode(Manifest.self, from: data), runsOnMac(manifest.platforms?.elements) else { return [] }
         let custom = CustomIcon.path(for: manifest.name)
         return manifest.commands.elements.compactMap { command in
             let mode = command.mode ?? "view"
-            guard mode == "view" || mode == "no-view" || mode == "menu-bar" else { return nil }
+            guard mode == "view" || mode == "no-view" || mode == "menu-bar", runsOnMac(command.platforms?.elements) else { return nil }
             return ExtensionCommand(
                 extensionDir: folder,
                 extensionName: manifest.name,
@@ -178,9 +206,24 @@ nonisolated struct ExtensionCommand: Identifiable, Sendable {
                 icon: custom ?? command.icon ?? manifest.icon,
                 arguments: command.arguments?.elements ?? [],
                 extensionPreferences: manifest.preferences?.elements ?? [],
-                commandPreferences: command.preferences?.elements ?? []
+                commandPreferences: command.preferences?.elements ?? [],
+                keywords: (command.keywords?.elements ?? []) + (manifest.keywords?.elements ?? []),
+                isDisabledByDefault: command.disabledByDefault ?? false,
+                owner: manifest.owner ?? manifest.author?.name
             )
         }
+    }
+}
+
+/// A name, or an object with one; anything else is no author rather than a manifest that cannot be read.
+private nonisolated struct ManifestAuthor: Decodable {
+    let name: String?
+
+    private enum Keys: String, CodingKey { case name }
+
+    init(from decoder: Decoder) throws {
+        name = (try? decoder.singleValueContainer().decode(String.self))
+            ?? (try? decoder.container(keyedBy: Keys.self).decode(String.self, forKey: .name))
     }
 }
 

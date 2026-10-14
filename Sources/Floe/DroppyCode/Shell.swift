@@ -159,8 +159,8 @@ nonisolated enum Shell {
         try Task.checkCancellation()
         // A process ended by a signal carries the signal's number, as it did.
         let status: Int32 = switch result.terminationStatus {
-        case .exited(let code): code
-        case .signaled(let signal): signal
+        case let .exited(code): code
+        case let .signaled(signal): signal
         }
         return ShellResult(status: status, stdout: collector.output(.stdout), stderr: collector.output(.stderr))
     }
@@ -237,7 +237,7 @@ private final nonisolated class StandardInput: Sendable {
     private let writeClosed = Mutex(false)
 
     init(for input: Data?) throws {
-        guard let input else {
+        guard input != nil else {
             readEnd = try FileDescriptor.open("/dev/null", .readOnly)
             writeEnd = nil
             return
@@ -265,7 +265,7 @@ private final nonisolated class StandardInput: Sendable {
     /// Writes the input, in full: a partial write is written on until it is done or the reader is gone.
     func write(_ bytes: [UInt8]) {
         guard let writeEnd else { return }
-        try? writeEnd.writeAll(bytes)
+        _ = try? writeEnd.writeAll(bytes)
     }
 
     /// Closes what is still Floe's, whichever way the run ends.

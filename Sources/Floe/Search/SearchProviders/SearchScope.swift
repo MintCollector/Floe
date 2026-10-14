@@ -51,7 +51,7 @@ struct ScopeMatch {
 extension RootSearch {
     /// Each model gets its own: a scope may hold the search it is running.
     static func standardScopes() -> [any SearchScope] {
-        [FileSearchScope(), ClipboardSearchScope(), MenuBarSearchScope(), SSHSearchScope(), ProcessSearchScope(), PortSearchScope(), ReceiptsSearchScope(), AppleShortcutSearchScope(), TimersSearchScope(), ContactSearchScope(), WindowSearchScope(), BookmarkSearchScope(), RecentDocumentsScope(), KeywordSearchScope(), KeywordSearchScope(keyword: KeywordSearchScope.mark)]
+        [FileSearchScope(), ClipboardSearchScope(), MenuBarSearchScope(), SSHSearchScope(), ProcessSearchScope(), PortSearchScope(), ReceiptsSearchScope(), AppleShortcutSearchScope(), TimersSearchScope(), ContactSearchScope(), WindowSearchScope(), BookmarkSearchScope(), BrewSearchScope(), SoundDeviceScope(role: .output), SoundDeviceScope(role: .input), TranslateSearchScope(), PlaceSearchScope(), RecentDocumentsScope(), KeywordSearchScope(), KeywordSearchScope(keyword: KeywordSearchScope.mark)]
     }
 
     /// The scope a query names with its keyword (see `SearchContext.text(after:)`). The first scope
@@ -97,5 +97,22 @@ final class SearchUpdates {
 
     deinit {
         task?.cancel()
+    }
+}
+
+extension AsyncStream where Element == [RootItem] {
+    /// One batch of rows that takes a while to find, made off the main actor. Nil sends nothing, and a search
+    /// that moves on cancels the work. With a pause, nothing is asked until the typing has rested that long.
+    static func once(after pause: Duration = .zero, _ rows: @escaping @Sendable () async -> [RootItem]?) -> AsyncStream<[RootItem]> {
+        let (stream, continuation) = makeStream(of: [RootItem].self)
+        let work = Task { @concurrent in
+            try? await Task.sleep(for: pause)
+            if !Task.isCancelled, let rows = await rows(), !Task.isCancelled {
+                continuation.yield(rows)
+            }
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in work.cancel() }
+        return stream
     }
 }

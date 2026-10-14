@@ -65,6 +65,13 @@ struct FieldSpecTests {
         #expect(Fixture.field(["name": "x", "default": ["nested": 1]])?.defaultValue == nil)
     }
 
+    @Test func aDefaultGivenPerPlatformTakesTheMacsValue() {
+        let bin = Fixture.field(["name": "bin", "default": ["macOS": "/usr/local/bin", "Windows": "%LOCALAPPDATA%\\JetBrains"]])
+        #expect(bin?.defaultValue as? String == "/usr/local/bin")
+        #expect(Fixture.field(["name": "x", "type": "checkbox", "default": ["macOS": true, "Windows": false]])?.defaultValue as? Bool == true)
+        #expect(Fixture.field(["name": "x", "default": ["Windows": "C:\\Tools"]])?.defaultValue == nil, "a default for other platforms only is none here")
+    }
+
     @Test func argumentsUseTheirPlaceholderAsTitle() throws {
         let field = try #require(Fixture.field(["name": "text", "placeholder": "Text"]))
         #expect(field.title == "Text")
@@ -139,6 +146,59 @@ struct ExtensionCommandTests {
             source: .local
         ).first)
         #expect(command.extensionTitle == "bare")
+    }
+
+    @Test func theOwnerIsTheManifestsOwnerElseItsAuthorInEitherShape() {
+        func owner(_ fields: [String: Any]) -> String? {
+            let manifest = fields.merging(["name": "bare", "commands": [["name": "run"]]]) { first, _ in first }
+            return ExtensionCommand.commands(inManifest: Fixture.manifest(manifest), folder: folder, source: .local).first?.owner
+        }
+        #expect(owner(["author": "someone"]) == "someone")
+        #expect(owner(["author": ["name": "someone"]]) == "someone")
+        #expect(owner(["author": "someone", "owner": "team"]) == "team")
+        #expect(owner(["author": 42]) == nil, "an author in no shape Raycast uses is no author, and the manifest still reads")
+        #expect(owner([:]) == nil)
+    }
+
+    @Test func aCommandCarriesItsOwnKeywordsAndItsExtensions() {
+        let commands = ExtensionCommand.commands(
+            inManifest: Fixture.manifest([
+                "name": "vault", "keywords": ["secrets"],
+                "commands": [["name": "items", "keywords": ["1p", "login", 7]], ["name": "lock"]],
+            ]),
+            folder: folder,
+            source: .raycast
+        )
+        #expect(commands.map(\.keywords) == [["1p", "login", "secrets"], ["secrets"]], "a keyword that is not a string is dropped")
+    }
+
+    @Test func aCommandKnowsWhetherItsManifestLeavesItOffByDefault() {
+        let commands = ExtensionCommand.commands(
+            inManifest: Fixture.manifest(["name": "vault", "commands": [["name": "items"], ["name": "renew", "disabledByDefault": true], ["name": "lock", "disabledByDefault": false]]]),
+            folder: folder,
+            source: .raycast
+        )
+        #expect(commands.map(\.isDisabledByDefault) == [false, true, false])
+    }
+
+    private func names(platforms: [String]?, commandPlatforms: [String]? = nil) -> [String] {
+        var extra: [String: Any] = ["name": "extra"]
+        extra["platforms"] = commandPlatforms
+        var manifest: [String: Any] = ["name": "tools", "commands": [["name": "run"], extra]]
+        manifest["platforms"] = platforms
+        return ExtensionCommand.commands(inManifest: Fixture.manifest(manifest), folder: folder, source: .raycast).map(\.name)
+    }
+
+    @Test func anExtensionWhosePlatformsLackTheMacHasNoCommands() {
+        #expect(names(platforms: ["Windows"]).isEmpty)
+        #expect(names(platforms: []).isEmpty)
+        #expect(names(platforms: ["macOS", "Windows"]) == ["run", "extra"])
+        #expect(names(platforms: nil) == ["run", "extra"], "no list means every platform")
+    }
+
+    @Test func aCommandWhosePlatformsLackTheMacIsLeftOut() {
+        #expect(names(platforms: nil, commandPlatforms: ["Windows"]) == ["run"])
+        #expect(names(platforms: ["macOS", "Windows"], commandPlatforms: ["macOS"]) == ["run", "extra"])
     }
 
     @Test(arguments: [[:], ["name": "no-commands"], ["commands": [["name": "run"]]]] as [[String: any Sendable]])

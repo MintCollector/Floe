@@ -25,6 +25,8 @@ struct RootIcon: View {
             Text(verbatim: "😀").font(.system(size: 20))
         case .clipboardHistory:
             IconView(value: "icon:Clipboard", assetsPath: "", size: 24)
+        case .noteDesk:
+            SymbolTile(symbol: "note.text")
         case let .clipboardApp(destination):
             // The chosen app's icon says where the command goes; one that is gone keeps the clipboard.
             if let app = destination.app {
@@ -100,7 +102,7 @@ struct RootIcon: View {
         case .extensionStore, .system, .note, .snippet, .event, .clipboardEntry,
              .menuBarAccess, .askAI, .webAddress, .checkpoint, .checkpointDraft,
              .reminderDraft, .eventDraft, .contact, .outgoing, .focus, .keyword,
-             .definition, .answer, .bookmark, .timer, .receipt, .shell:
+             .definition, .answer, .bookmark, .brew, .soundDevice, .qrCode, .place, .timer, .receipt, .shell:
             symbolIcon
         }
     }
@@ -148,6 +150,14 @@ struct RootIcon: View {
             SymbolTile(symbol: row.symbol)
         case .bookmark:
             SymbolTile(symbol: "book")
+        case let .brew(package):
+            SymbolTile(symbol: package.isCask ? "macwindow" : "shippingbox")
+        case let .soundDevice(row):
+            SymbolTile(symbol: row.symbol)
+        case .qrCode:
+            SymbolTile(symbol: "qrcode")
+        case .place:
+            SymbolTile(symbol: "mappin.and.ellipse")
         case .timer:
             SymbolTile(symbol: "timer")
         case let .receipt(receipt):

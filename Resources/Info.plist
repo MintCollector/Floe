@@ -33,6 +33,10 @@
 	<string>1</string>
 	<key>FloeLinks</key>
 	<dict>
+		<key>audioPriorityBar</key>
+		<string>https://github.com/camguillory/Audio-Priority-Bar</string>
+		<key>barometer</key>
+		<string>https://github.com/mackid1993/Barometer</string>
 		<key>bun</key>
 		<string>https://bun.sh</string>
 		<key>compactSlider</key>

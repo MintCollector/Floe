@@ -11,7 +11,7 @@ import Synchronization
 /// What the shell's suggestions read: the history, the programs on the PATH and a folder's entries,
 /// each kept as a snapshot the search is answered from at once. The reads run off the main actor
 /// behind the typing, and a snapshot that changed asks the launcher to look again.
-nonisolated final class ShellSnapshots: Sendable {
+final nonisolated class ShellSnapshots: Sendable {
     /// One store in the process: the search is answered from it, and its reads are its own.
     static let shared = ShellSnapshots()
 
@@ -151,7 +151,7 @@ nonisolated final class ShellSnapshots: Sendable {
     }
 
     private func endEntryRead(_ folder: String) {
-        entryReads.withLock { $0.remove(folder) }
+        _ = entryReads.withLock { $0.remove(folder) }
     }
 
     /// Puts a finished read where it belongs, unless a newer ask superseded it. Freshness is renewed

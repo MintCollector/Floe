@@ -49,7 +49,7 @@ After you install:
 - **Hide from Search** takes an application or a command out of the search. Settings > General lists what is hidden and brings it back.
 - **The Up arrow brings back earlier searches:** the last 50 that opened something. Settings > Privacy turns this off and forgets them.
 - **Optional search sources.** Files and open browser tabs (Safari, Dia, Helium) add up to three rows to a search. Both are off until you turn them on in Privacy.
-- **`Floe --pick` lends the search panel to a script.** It reads lines on standard input and prints the one you choose.
+- **`Floe --pick` lends the search panel to a script.** It reads lines on standard input and prints the one you choose. A tab splits a line into a title and what is shown beside it.
 
 #### Shell commands
 - **Type `>` and a command to run it.** Return runs it in the background and shows the first line of output. Your shell aliases work. Settings > General changes the prefix to `$` or `!`, or turns this off.
@@ -114,6 +114,14 @@ After you install:
 - **`bookmarks invoice` finds a bookmark** of Chrome, Brave, Edge, Arc, Vivaldi, Dia or Helium. Floe reads the browser's own file when you type the word, and nothing leaves your Mac. Safari is not covered.
 - **`time in tokyo` shows the time there**, and how far it is from yours. `time 5pm in berlin` takes a time of day here to there.
 - **`uuid`, `password 24` and `lorem 3` make something to paste.** A password is copied so that clipboard managers leave it out.
+- **`translate hola mundo` translates a text.** It goes to your first language the text is not already in, or to the one you name: `translate to german good morning`. The word alone translates the clipboard. The translation is Apple's, made on this Mac, and the row says so and that it can be rough. A pair of languages macOS has not downloaded says so, and Return opens the settings that download it.
+- **Pick Color from Screen** shows the system's eyedropper and copies the color under it as hex, such as `#A1B2C3`.
+- **Copy Text from Screen** reads the text in the part of the screen you drag over and copies it. A QR code or a barcode there is read, and what it says is copied. The reading is done on this Mac, and macOS asks for Screen Recording the first time.
+- **`qr https://example.com` makes a QR code.** Return copies the picture, and the actions show it in Quick Look or save it to Downloads.
+- **`maps coffee in lisbon` finds a place.** The places come from Apple Maps, so the text after `maps` is sent to Apple; Floe asks for no location and sends nothing for any other search. Return shows the place in Maps, and the actions open the way there or copy the address. Settings > Privacy lists it under Network Access.
+- **`output airpods` and `input macbook` choose where sound goes.** `output` or `input` alone lists every device, the one in use first, and Return makes the selected one the default. AirPods show the battery of each bud and of the case. The devices are read with Audio Priority Bar's sources, by Camille Guillory and originally by tobi.
+- **`battery`, `disk`, `memory` and `ip` show a fact about this Mac.** The battery's charge, time left, cycles and health, with the battery of each connected mouse, keyboard or headphones that reports one, the room on the startup disk, the memory in use and the local address. They sit under the other results, so `disk` and Return still open Disk Utility. The battery, memory and address are read with Barometer's system sources, by mackid1993.
+- **`brew ripgrep` finds a Homebrew package.** Return installs it in your terminal, or upgrades one you have, and the actions uninstall it. `brew` alone lists what is installed. The names come from the lists Homebrew keeps on disk, so `brew` is not started until you choose.
 - **`base64 hello` changes a text**, and so do `unbase64`, `urlencode`, `urldecode`, `uppercase`, `lowercase`, `titlecase` and `sha256`. With nothing after the word, it works on the clipboard.
 - **Command-Y shows a file in Quick Look** from the search, and a file's Actions menu has Quick Look.
 - **Emoji and symbols.** Hands and people use the skin tone you choose in Settings > General. By @OwenCope in [#6](https://github.com/thaw-app/Floe/pull/6).
@@ -122,7 +130,9 @@ After you install:
 
 #### Your own apps
 - **Preferred apps:** a terminal, an editor, a browser and a notes app. Files, folders and the Finder selection open in them, and web links open in the browser you choose. The editor can be one that runs in your terminal: Helix, Neovim, Vim, Emacs and others on your Mac are offered by name. Open With sends one link to another browser.
-- **A preferred clipboard app.** Choose a clipboard manager and Clipboard History opens it. Floe keeps no clipboard history of its own.
+- **Clipboard history.** Floe keeps the text, links, images and files you copy, up to 300 of them, and text keeps its formatting. Return pastes one, and pinned copies survive Clear. A copy a password manager marks private is left out. Turn it off in Settings > General.
+- **Browse Notes.** With a folder of notes chosen as the notes app, such as an Obsidian or Octarine vault, Browse Notes lists its notes in the panel, shows the selected one as Markdown and lets you write it. Command-N makes a note named by what you typed, Command-E starts and ends writing, and Command-O opens the note in its app. Floe keeps no copy: it reads and writes the files, says at the bottom which app they are kept in, and picks up what that app writes. A note changed elsewhere while you wrote is not overwritten; yours is saved beside it. It takes a hotkey in Settings > General.
+- **A preferred clipboard app.** Choose a clipboard manager and Clipboard History opens it. Floe then saves no copies.
 - **SSH hosts.** The hosts in `~/.ssh/config` are in the search, and `ssh` and a space lists them. Return connects in your terminal. Floe reads the names and keeps nothing.
 - **Apple Shortcuts**, once turned on in Settings > Privacy. Return runs one in the background. If it fails, Floe shows the reason Shortcuts gave.
 
