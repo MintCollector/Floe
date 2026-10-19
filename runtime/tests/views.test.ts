@@ -71,6 +71,19 @@ describe("List", () => {
     expect(titles(findAll(slot(empty, "actions"), "Action"))).toEqual(["Create"]);
   });
 
+  test("pagination's onLoadMore becomes a handler of the list, with hasMore and pageSize beside it", async () => {
+    const loads: string[] = [];
+    const pagination = { onLoadMore: () => loads.push("more"), hasMore: true, pageSize: 20 };
+    for (const component of [List, Grid]) {
+      const view = find(await showScreen(h(component, { pagination }, h(component.Item, { title: "One" }))), component === List ? "List" : "Grid");
+      expect(view.props).toMatchObject({ hasMore: true, pageSize: 20 });
+      expect(view.props.pagination).toBeUndefined();
+      expect(view.handlers).toContain("onLoadMore");
+      await fire(view, "onLoadMore");
+    }
+    expect(loads).toEqual(["more", "more"]);
+  });
+
   test("leaves out the slot when the prop is not set", async () => {
     const tree = await showScreen(h(List, null, h(List.Item, { title: "Mars", actions: undefined })));
     expect(findAll(tree, "_slot")).toEqual([]);
@@ -198,7 +211,7 @@ describe("Grid and MenuBarExtra", () => {
       ),
     );
     const grid = find(tree, "Grid");
-    expect(grid.props).toEqual({ columns: 4, inset: "large", fit: "contain", itemSize: "small" });
+    expect(grid.props).toEqual({ columns: 4, inset: "lg", fit: "contain", itemSize: "small" });
     const item = find(find(grid, "Grid.Section"), "Grid.Item");
     expect(item.props).toEqual({ title: "Star", content: "icon:Star" });
     expect(titles(findAll(slot(item, "actions"), "Action"))).toEqual(["Pick"]);
@@ -280,6 +293,13 @@ const planetItems = [
   h(List.Dropdown.Item, { key: "venus", value: "venus", title: "Venus" }),
 ];
 
+// Extensions built against API 1.x spell some members the older way.
+test("the older Form member spellings are the same components", () => {
+  expect(Form.DropdownItem).toBe(Form.Dropdown.Item);
+  expect(Form.DropdownSection).toBe(Form.Dropdown.Section);
+  expect(Form.TagPickerItem).toBe(Form.TagPicker.Item);
+});
+
 describe("search bar dropdown", () => {
   test("calls onChange on mount with the first item, even inside a section", async () => {
     const changes: string[] = [];
@@ -304,6 +324,16 @@ describe("search bar dropdown", () => {
     expect(changes).toEqual(["venus", "earth"]);
   });
 
+  // The Verge names its first item by title in defaultValue; Raycast starts on the first item, not on "Top".
+  test("a defaultValue that no item has starts on the first item", async () => {
+    const changes: string[] = [];
+    const tree = await showScreen(
+      h(List, { searchBarAccessory: h(List.Dropdown, { defaultValue: "Mercury", onChange: (value: string) => changes.push(value) }, ...planetItems) }),
+    );
+    expect(dropdownOf(tree, "List.Dropdown").props.value).toBe("mercury");
+    expect(changes).toEqual(["mercury"]);
+  });
+
   test("does not call onChange on mount when there is nothing to select", async () => {
     const changes: string[] = [];
     await showScreen(h(List, { searchBarAccessory: h(List.Dropdown, { onChange: (value: string) => changes.push(value) }, "not an item") }));
@@ -316,14 +346,14 @@ describe("search bar dropdown", () => {
     const after = await fire(dropdownOf(tree, "Grid.Dropdown"), "onChange", "venus");
     expect(dropdownOf(after, "Grid.Dropdown").props.value).toBe("venus");
     expect(changes).toEqual(["mercury", "venus"]);
-    expect(fs.existsSync(path.join(runtime.supportPath, "dropdown-values.json"))).toBe(false);
+    expect(fs.existsSync(path.join(runtime.dataPath, "dropdown-values.json"))).toBe(false);
   });
 
   test("storeValue remembers the selection per command and dropdown id", async () => {
     const element = () => h(List, { searchBarAccessory: h(List.Dropdown, { id: "planet", storeValue: true }, ...planetItems) });
     const tree = await showScreen(element());
     await fire(dropdownOf(tree, "List.Dropdown"), "onChange", "venus");
-    expect(JSON.parse(fs.readFileSync(path.join(runtime.supportPath, "dropdown-values.json"), "utf8"))).toEqual({ "main:planet": "venus" });
+    expect(JSON.parse(fs.readFileSync(path.join(runtime.dataPath, "dropdown-values.json"), "utf8"))).toEqual({ "main:planet": "venus" });
 
     const reopened = await showScreen(element());
     expect(dropdownOf(reopened, "List.Dropdown").props.value).toBe("venus");

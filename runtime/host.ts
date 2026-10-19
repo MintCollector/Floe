@@ -16,7 +16,10 @@ import { dispatchEvent, render, renderInFull, toError } from "./renderer";
 import { NavigationRoot, commandDrewItself, handleToastAction } from "./api/index";
 import { bundle, findEntry } from "./build";
 import { flushCaches } from "./cache";
+import { prepareFolders } from "./folders";
 import { withNodeCause } from "./fetch";
+import { withNodeOptions } from "./compat/network";
+import { useNodeExecPath } from "./node";
 import { lineSplitter } from "./lines";
 import { isRecording, observe } from "./access";
 
@@ -43,8 +46,8 @@ ctx.commandName = commandName;
 ctx.commandMode = command.mode ?? "view";
 ctx.launchType = process.env.FLOE_LAUNCH_TYPE === "background" ? "background" : "userInitiated";
 ctx.manifest = manifest;
-ctx.supportPath = path.join(os.homedir(), "Library/Application Support/Floe/Data", manifest.name);
-fs.mkdirSync(ctx.supportPath, { recursive: true });
+ctx.dataPath = path.join(os.homedir(), "Library/Application Support/Floe/Data", manifest.name);
+ctx.supportPath = prepareFolders(ctx.dataPath);
 
 function fail(error: unknown, fatal = true) {
   const err = toError(error);
@@ -94,16 +97,19 @@ process.stdin.on("end", () => process.exit(0));
 const launchProps = {
   launchType: ctx.launchType,
   arguments: argumentsJSON ? JSON.parse(argumentsJSON) : {},
+  // What the command that called launchCommand handed on.
+  launchContext: process.env.FLOE_LAUNCH_CONTEXT ? JSON.parse(process.env.FLOE_LAUNCH_CONTEXT) : undefined,
   fallbackText: undefined,
 };
 
-globalThis.fetch = withNodeCause(globalThis.fetch);
+globalThis.fetch = withNodeCause(withNodeOptions(globalThis.fetch));
+useNodeExecPath();
 
 try {
   const entry = await bundle(findEntry());
   // From here on it is the extension that reads, writes and calls out. Its own folders are not news.
   const report = observe({
-    own: [ctx.extDir, ctx.supportPath, import.meta.dir, fs.realpathSync(os.tmpdir())],
+    own: [ctx.extDir, ctx.dataPath, import.meta.dir, fs.realpathSync(os.tmpdir())],
     report: (found) => send({ type: "access", ...found }),
     recording: isRecording(),
   });
@@ -112,8 +118,10 @@ try {
   // A CommonJS bundle (what Raycast installs) arrives as { default: module.exports }, whose own default is the command.
   const exported = module.default;
   const Command = typeof exported === "object" && exported !== null && "default" in exported ? exported.default : exported;
-  if (typeof Command !== "function" && !commandDrewItself()) throw new Error("command has no default export");
-  if (typeof Command !== "function") {
+  // memo() and forwardRef() make components that are objects; Raydoom exports memo(Command).
+  const isComponent = typeof Command === "function" || (typeof Command === "object" && Command !== null && "$$typeof" in Command);
+  if (!isComponent && !commandDrewItself()) throw new Error("command has no default export");
+  if (!isComponent) {
     // It drew its view itself, the way commands did before they exported one. Nothing is left to mount.
   } else if (ctx.commandMode === "menu-bar") {
     // No NavigationRoot here; the process stays alive so menu item onAction events can be dispatched.

@@ -9,11 +9,13 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:
 import { Database } from "bun:sqlite";
 import fs from "node:fs";
 import path from "node:path";
+import React from "react";
 import * as api from "../api/index";
 import { isLent } from "../api/oauth";
 import { ctx, handleReply, handleReplyChunk } from "../bridge";
 import { createLocalStorage } from "../local-storage";
-import { installRuntime, sent } from "./support";
+import { installRuntime, resetStage, sent } from "./support";
+import { render } from "../renderer";
 
 const runtime = installRuntime("system-tests");
 
@@ -245,9 +247,17 @@ describe("window and system", () => {
       { name: "Odd Tool", path: "/Applications/Odd Tool.app", bundleId: undefined },
       { name: "Bare", path: "/Applications/Bare.app", bundleId: undefined },
     ]);
-    expect(await api.getApplications("/tmp/file.txt")).toBe(applications);
+    expect(await api.getApplications()).toBe(applications);
     expect(tool.commands()).toHaveLength(1);
     expect(tool.commands()[0][0]).toBe("mdfind");
+  });
+
+  test("the apps for a file come from the app", async () => {
+    const apps = api.getApplications("/tmp/file.txt");
+    const [request] = sent("request");
+    expect(request).toMatchObject({ method: "environment.getApplications", params: { path: "/tmp/file.txt" } });
+    handleReply({ id: request.id, result: [{ name: "TextEdit", path: "/Applications/TextEdit.app" }] });
+    expect(await apps).toEqual([{ name: "TextEdit", path: "/Applications/TextEdit.app" }]);
   });
 
   test("the default and frontmost application come from the app, Finder when it names none", async () => {
@@ -276,9 +286,30 @@ describe("window and system", () => {
     await expect(items).rejects.toThrow("No files are selected in the Finder.");
   });
 
-  test("calls that are not supported yet reject with a message saying so", async () => {
-    await expect(api.launchCommand({ name: "other" })).rejects.toThrow("launchCommand isn't supported yet");
+  test("launchCommand asks the app to start the command, and rejects with the app's reason", async () => {
+    const started = api.launchCommand({ name: "inbox", type: api.LaunchType.Background, context: { unread: 3 } });
+    const [request] = sent("request");
+    expect(request).toMatchObject({
+      method: "command.launch",
+      params: { name: "inbox", type: "background", arguments: {}, context: { unread: 3 } },
+    });
+    handleReply({ id: request.id, result: null });
+    expect(await started).toBeUndefined();
+
+    const refused = api.launchCommand({ name: "gone", type: api.LaunchType.UserInitiated, extensionName: "mail" });
+    handleReply({ id: sent("request")[1].id, error: "The extension \"mail\" isn't installed" });
+    await expect(refused).rejects.toThrow("isn't installed");
+  });
+
+  test("updateCommandMetadata sends the subtitle, and null for anything that isn't text", async () => {
     expect(await api.updateCommandMetadata({ subtitle: "3 unread" })).toBeUndefined();
+    await api.updateCommandMetadata({ subtitle: null });
+    await api.updateCommandMetadata({});
+    expect(sent("commandMetadata")).toEqual([
+      { type: "commandMetadata", subtitle: "3 unread" },
+      { type: "commandMetadata", subtitle: null },
+      { type: "commandMetadata", subtitle: null },
+    ]);
   });
 
   test("captureException logs the error", () => {
@@ -365,7 +396,7 @@ describe("LocalStorage", () => {
 
   test("keeps its values in the extension's support folder", async () => {
     await api.LocalStorage.setItem("kept", "yes");
-    const database = new Database(path.join(runtime.supportPath, "local-storage.sqlite"), { readonly: true });
+    const database = new Database(path.join(runtime.dataPath, "local-storage.sqlite"), { readonly: true });
     try {
       expect(JSON.parse((database.prepare("select value from items where key = 'kept'").get() as { value: string }).value)).toBe("yes");
     } finally {
@@ -374,12 +405,12 @@ describe("LocalStorage", () => {
   });
 
   test("a former file that cannot be read is moved aside, and the database keeps what it has", async () => {
-    fs.writeFileSync(path.join(runtime.supportPath, "local-storage.json"), "{not json");
-    const opened = createLocalStorage(() => path.join(runtime.supportPath, "local-storage.sqlite"));
+    fs.writeFileSync(path.join(runtime.dataPath, "local-storage.json"), "{not json");
+    const opened = createLocalStorage(() => path.join(runtime.dataPath, "local-storage.sqlite"));
     expect(await opened.getItem("kept")).toBe("yes");
     await opened.setItem("fresh", "start");
     expect(await opened.getItem("fresh")).toBe("start");
-    const aside = fs.readdirSync(runtime.supportPath).filter((name) => name.includes(".unreadable-"));
+    const aside = fs.readdirSync(runtime.dataPath).filter((name) => name.includes(".unreadable-"));
     expect(aside).toHaveLength(1);
   });
 });
@@ -407,7 +438,7 @@ describe("Cache", () => {
     expect(new api.Cache({ namespace: "persisted" }).get("key")).toBe("value");
     expect(new api.Cache({ namespace: "elsewhere" }).has("key")).toBe(false);
     expect(new api.Cache().has("key")).toBe(false);
-    expect(fs.existsSync(path.join(runtime.supportPath, "cache-persisted.json"))).toBe(true);
+    expect(fs.existsSync(path.join(runtime.dataPath, "cache", "persisted.json"))).toBe(true);
   });
 
   test("its methods work when passed around unbound", () => {
@@ -446,7 +477,7 @@ describe("getPreferenceValues", () => {
     preferences: [{ name: "greeting", default: "Hello" }, { name: "token" }, { name: "shout", default: false }],
     commands: [{ name: "main", preferences: [{ name: "limit", default: 10 }] }, { name: "other", preferences: [{ name: "unrelated", default: 1 }] }],
   };
-  const preferencesFile = () => path.join(runtime.supportPath, "preferences.json");
+  const preferencesFile = () => path.join(runtime.dataPath, "preferences.json");
   beforeEach(() => {
     ctx.manifest = manifest;
     fs.rmSync(preferencesFile(), { force: true });
@@ -599,11 +630,8 @@ describe("what Raycast exports", () => {
     expect(exported.filter((name) => !(name in api))).toEqual([]);
   });
 
-  test("the browser and the windows are refused, with the reason", async () => {
-    expect(api.environment.canAccess(api.BrowserExtension)).toBe(false);
+  test("the windows are refused, with the reason", async () => {
     expect(api.environment.canAccess(api.WindowManagement)).toBe(false);
-    await expect(api.BrowserExtension.getTabs()).rejects.toThrow("BrowserExtension.getTabs isn't supported in Floe yet");
-    await expect(api.BrowserExtension.getContent()).rejects.toThrow("isn't supported in Floe yet");
     await expect(api.WindowManagement.getActiveWindow()).rejects.toThrow("WindowManagement.getActiveWindow isn't supported in Floe yet");
     expect(api.WindowManagement.DesktopType.FullScreen).toBe("FullScreen");
   });
@@ -747,6 +775,8 @@ describe("OAuth while sign-in is parked", () => {
     const message = `Floe signs in to GitLab with the GitLab CLI. Install it, run "glab auth login", and allow it when Floe asks. Or add "API Token" in this extension's preferences.`;
     await expect(gitlab.authorize({ url: "https://example.com" })).rejects.toThrow(message);
     await expect(gitlab.setTokens({ accessToken: "abc" })).rejects.toThrow(message);
+    // Another extension, as far as the sign-in it remembers failing is concerned.
+    ctx.signInFailure = undefined;
     ctx.manifest = { name: "gitlab", preferences: [] };
     const bare = `Floe signs in to GitLab with the GitLab CLI. Install it, run "glab auth login", and allow it when Floe asks.`;
     await expect(gitlab.authorize({ url: "https://example.com" })).rejects.toThrow(new Error(bare));
@@ -761,8 +791,12 @@ describe("OAuth while sign-in is parked", () => {
       commands: [{ name: "main", preferences: [password("apiKey")] }],
     };
     await expect(client.authorize({ url: "https://example.com" })).rejects.toThrow(`Floe can't sign in yet. Add "apiKey" in`);
+    // Another extension, as far as the sign-in it remembers failing is concerned.
+    ctx.signInFailure = undefined;
     ctx.manifest = { name: "notes", preferences: [password("passphrase")] };
     await expect(client.authorize({ url: "https://example.com" })).rejects.toThrow(`Add "passphrase" in`);
+    // Another extension, as far as the sign-in it remembers failing is concerned.
+    ctx.signInFailure = undefined;
     ctx.manifest = { name: "notes", preferences: [{ name: "apiToken", title: "API Token", type: "textfield" }] };
     await expect(client.authorize({ url: "https://example.com" })).rejects.toThrow(`Add "API Token" in`);
   });
@@ -825,28 +859,57 @@ describe("OAuth with sign-in on", () => {
     expect(second.state).not.toBe(first.state);
   });
 
-  test("a redirect straight to Raycast cannot be received, so it falls back to the token preference", async () => {
-    ctx.manifest = { name: "calendar", preferences: [{ name: "apiKey", type: "password" }] };
-    const options = { endpoint: "https://example.com/auth", clientId: "c", scope: "s" };
-    for (const redirectMethod of [api.OAuth.RedirectMethod.App, api.OAuth.RedirectMethod.AppURI]) {
-      const client = new api.OAuth.PKCEClient({ redirectMethod, providerName: "Google" });
-      await expect(client.authorizationRequest(options)).rejects.toThrow("Floe can't sign in to Google yet.");
+  // withAccessToken drops a rejected sign-in and asks again on React's next try: one cancel started a hundred sign-ins.
+  test("a cancelled sign-in inside use() opens the browser once, and the view says it was cancelled", async () => {
+    const client = new api.OAuth.PKCEClient({ redirectMethod: api.OAuth.RedirectMethod.Web, providerName: "Logbook" });
+    let cached: Promise<string> | null = null;
+    const authorize = () =>
+      (cached ??= client
+        .authorizationRequest({ endpoint: "https://example.com/auth", clientId: "c", scope: "s" })
+        .then((request) => client.authorize(request))
+        .then((answer) => answer.authorizationCode)
+        .catch((error) => {
+          cached = null;
+          throw error;
+        }));
+    function Wrapped() {
+      return React.createElement(api.Detail, { markdown: React.use(authorize()) });
     }
-    expect(sent("signIn")).toHaveLength(2);
-    expect(sent("request")).toEqual([]);
+    // A root of its own: the view's error ends the root it is in.
+    render(React.createElement(Wrapped));
+    const answered = new Set<number>();
+    try {
+      for (let round = 0; round < 50; round++) {
+        for (const ask of sent("request").filter((message) => message.method === "oauth.authorize" && !answered.has(message.id))) {
+          answered.add(ask.id);
+          handleReply({ id: ask.id, error: "Sign-in was cancelled." });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
+
+      expect(answered.size).toBe(1);
+      expect(sent("error").map((error) => error.message)).toContain("Sign-in was cancelled.");
+    } finally {
+      resetStage();
+    }
   });
 
-  test("custom URLs also fall back when the redirect cannot reach Floe", async () => {
-    ctx.manifest = { name: "calendar", preferences: [{ name: "apiKey", type: "password" }] };
-    for (const redirectMethod of [api.OAuth.RedirectMethod.App, api.OAuth.RedirectMethod.AppURI]) {
-      const client = new api.OAuth.PKCEClient({ redirectMethod, providerName: "Google" });
-      const authorized = client.authorize({ url: "https://example.com/auth?state=original" });
-      const message = sent("request").at(-1);
-      if (message) handleReply({ id: message.id, error: "Unexpected browser request" });
-      await expect(authorized).rejects.toThrow("Floe can't sign in to Google yet.");
+  // Google's installed-app clients, which Gmail and Google Tasks use, return to com.raycast:/oauth.
+  test("an app redirect names Raycast's app address, which the app opens in Floe while the sign-in waits", async () => {
+    ctx.manifest = { name: "gmail" };
+    const options = { endpoint: "https://accounts.google.com/o/oauth2/v2/auth", clientId: "c", scope: "s" };
+    const addresses = { [api.OAuth.RedirectMethod.App]: "raycast://oauth?package_name=Extension", [api.OAuth.RedirectMethod.AppURI]: "com.raycast:/oauth?package_name=Extension" };
+    for (const [redirectMethod, address] of Object.entries(addresses)) {
+      const client = new api.OAuth.PKCEClient({ redirectMethod: redirectMethod as "app", providerName: "Google" });
+      const request = await client.authorizationRequest(options);
+      expect(new URL(request.toURL()).searchParams.get("redirect_uri")).toBe(address);
+
+      const authorized = client.authorize(request);
+      const ask = sent("request").at(-1);
+      handleReply({ id: ask.id, result: { url: `${address}&code=granted&state=${request.state}` } });
+      expect(await authorized).toEqual({ authorizationCode: "granted" });
     }
-    expect(sent("signIn")).toHaveLength(2);
-    expect(sent("request")).toEqual([]);
+    expect(sent("signIn")).toEqual([]);
   });
 
   test("custom web URLs send and validate the state embedded in the URL", async () => {

@@ -13,10 +13,14 @@ extension ExtensionSession {
     func handleRequest(_ fields: [String: Any]) -> Bool {
         switch fields["type"] as? String {
         case "request":
-            if fields["method"] as? String == "alert.confirm", let id = fields["id"] as? Int {
-                showAlert(id: id, params: fields["params"] as? [String: Any] ?? [:])
-            } else {
-                answerRequest(fields)
+            let params = fields["params"] as? [String: Any] ?? [:]
+            let method = fields["method"] as? String ?? ""
+            guard let id = fields["id"] as? Int else { break }
+            switch method {
+            case "alert.confirm": showAlert(id: id, params: params)
+            case "command.launch": reply(to: id) { try launch(params) }
+            case "snippet.create", "quicklink.create": reply(to: id) { try ExtensionCreations.create(method, params) }
+            default: answerRequest(fields)
             }
         case "cancelRequest":
             if let id = fields["id"] as? Int {
@@ -29,6 +33,41 @@ extension ExtensionSession {
             return false
         }
         return true
+    }
+
+    /// Answers a request the app settles at once: null when `body` returns, its error when it throws.
+    private func reply(to id: Int, _ body: () throws -> Void) {
+        var reply: [String: Any] = ["type": "reply", "id": id]
+        do {
+            try body()
+            reply["result"] = NSNull()
+        } catch {
+            reply["error"] = error.localizedDescription
+        }
+        send(reply)
+    }
+
+    /// `launchCommand`, which starts the command before it answers.
+    private func launch(_ params: [String: Any]) throws {
+        guard let launcher = CommandLauncher.shared else {
+            throw RequestRefusal(errorDescription: "Floe can't launch commands from here.")
+        }
+        try launcher.launch(params, from: command)
+    }
+
+    /// Takes `toggleQuickLook`, for the selected item's `quickLook` file; false for any other message.
+    func toggledQuickLook(_ fields: [String: Any]) -> Bool {
+        guard fields["type"] as? String == "toggleQuickLook" else { return false }
+        if let url = Self.quickLookFile(of: selectedRow) {
+            QuickLookPresenter.shared.toggle(url)
+        }
+        return true
+    }
+
+    /// The file an item names in its `quickLook` prop, as `{ path, name }`.
+    static func quickLookFile(of row: Row?) -> URL? {
+        guard let quickLook = row?.node.props["quickLook"] as? [String: Any], let path = quickLook["path"] as? String, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
     }
 
     /// Starts answering one request and replies when the answer is there, after any `replyChunk`s. A request the host
@@ -133,7 +172,7 @@ extension ExtensionSession {
         _ base: [String: String],
         preferences: Data?,
         hasAI: Bool,
-        launchType: String = "userInitiated",
+        launch: (type: String, context: [String: Any]?) = ("userInitiated", nil),
         recordsAccess: Bool = true,
         isDevelopment: Bool = false,
         isDark: Bool? = nil
@@ -145,7 +184,8 @@ extension ExtensionSession {
         }
         variables["FLOE_AI"] = hasAI ? "1" : nil
         variables["FLOE_OAUTH"] = OAuthBroker.isParked ? nil : "1"
-        variables["FLOE_LAUNCH_TYPE"] = launchType
+        variables["FLOE_LAUNCH_TYPE"] = launch.type
+        variables["FLOE_LAUNCH_CONTEXT"] = CommandLauncher.data(launch.context).flatMap { String(bytes: $0, encoding: .utf8) }
         variables[referencesVariable] = String(KeptRender.referenceVersion)
         variables[accessVariable] = recordsAccess ? nil : accessOff
         variables[developmentVariable] = isDevelopment ? "1" : nil

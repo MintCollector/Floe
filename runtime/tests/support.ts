@@ -32,24 +32,28 @@ export function makeTempDir(label: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `floe-${label}-`));
 }
 
-// Registers the hooks every test file needs. Returns the temp folder standing in for the support path.
-export function installRuntime(extensionName: string): { readonly supportPath: string } {
-  const runtime = { supportPath: "" };
+// Registers the hooks every test file needs. Returns the temp folders standing in for the data and support paths.
+export function installRuntime(extensionName: string): { readonly dataPath: string; readonly supportPath: string } {
+  const runtime = { dataPath: "", supportPath: "" };
   beforeAll(() => {
-    runtime.supportPath = makeTempDir("support");
-    ctx.extDir = path.join(runtime.supportPath, "extension");
+    runtime.dataPath = makeTempDir("data");
+    runtime.supportPath = path.join(runtime.dataPath, "support");
+    fs.mkdirSync(runtime.supportPath);
+    ctx.extDir = path.join(runtime.dataPath, "extension");
     ctx.commandName = "main";
     ctx.commandMode = "view";
+    ctx.dataPath = runtime.dataPath;
     ctx.supportPath = runtime.supportPath;
     ctx.manifest = { name: extensionName };
     setSink((line) => received.push(JSON.parse(line)));
   });
   beforeEach(() => {
     received.length = 0;
+    ctx.signInFailure = undefined;
   });
   afterAll(() => {
     setSink();
-    fs.rmSync(runtime.supportPath, { recursive: true, force: true });
+    fs.rmSync(runtime.dataPath, { recursive: true, force: true });
   });
   return runtime;
 }

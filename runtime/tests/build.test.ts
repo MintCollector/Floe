@@ -11,7 +11,7 @@ import path from "node:path";
 import React from "react";
 import { ctx } from "../bridge";
 import { bundle, findEntry, fingerprint, newestChange, shimPath } from "../build";
-import { find, installRuntime, makeTempDir, showScreen } from "./support";
+import { find, installRuntime, makeTempDir, sent, showScreen } from "./support";
 
 installRuntime("build-tests");
 const tempDirs: string[] = [];
@@ -36,8 +36,8 @@ function makeExtension(files: Record<string, string>, command = "main"): string 
   ctx.manifest = { name: "sample" };
   // Each extension has its own support folder in the app too. Bun also remembers a folder's listing
   // once it has imported from it, so a second bundle in the same folder would not be found.
-  ctx.supportPath = makeTempDir("support");
-  tempDirs.push(ctx.supportPath);
+  ctx.dataPath = makeTempDir("data");
+  tempDirs.push(ctx.dataPath);
   return extDir;
 }
 
@@ -164,7 +164,7 @@ describe("bundle", () => {
     const extDir = makeExtension({ "src/hello.tsx": commandSource, "src/label.ts": 'export const label = "from the bundle";' }, "hello");
     const output = await bundle(findEntry());
 
-    expect(output).toBe(path.join(ctx.supportPath, "build", "hello.js"));
+    expect(output).toBe(path.join(ctx.dataPath, "build", "hello.js"));
     const code = fs.readFileSync(output, "utf8");
     expect(code).toContain(JSON.stringify(shimPath));
     expect(code).toContain("from the bundle");
@@ -238,6 +238,216 @@ export default async () => {
     const command = (await import(await bundle(findEntry()))).default;
 
     expect(await command()).toEqual({ plain: true, marked: true, answer: 42 });
+  });
+
+  // Raycast Wallpaper imports a Rust helper it only calls on Windows; Bun could not resolve the import at all.
+  test("a rust: import builds, and a call rejects as Raycast's own macOS stub does", async () => {
+    makeExtension(
+      {
+        "src/wall.ts": `import { set_wallpaper as setWindows, type Monitor } from "rust:../rust";
+export default async () => ({ windows: typeof setWindows, failure: await setWindows("a", "b").catch((error: Error) => error.message) });`,
+      },
+      "wall",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(await command()).toEqual({ windows: "function", failure: "Rust functions are not supported on macOS" });
+  });
+
+  // Apple Reminders, Safari and others call Swift code of their own, built with Raycast's extensions-swift-tools.
+  describe("a swift: import", () => {
+    // Stands in for the toolchain: it describes the package and "builds" a script that answers like a built helper.
+    function fakeSwift(folder: string) {
+      const helper = path.join(folder, "helper.sh");
+      write(helper, `#!/bin/sh
+case "$1" in
+  fail) echo "nope(\\"why\\")" >&2; exit 1 ;;
+  nothing) exit 0 ;;
+  *) name="$1"; shift; args=$(printf '%s,' "$@"); printf '{"called":"%s","args":[%s]}' "$name" "\${args%,}" ;;
+esac
+`);
+      const swift = path.join(folder, "swift.sh");
+      write(swift, `#!/bin/sh
+case "$1" in
+  package) echo '{"targets":[{"name":"Helper","type":"executable"},{"name":"HelperTests","type":"test"}]}' ;;
+  build)
+    while [ "$#" -gt 0 ]; do [ "$1" = "--scratch-path" ] && scratch="$2"; shift; done
+    mkdir -p "$scratch/release" && cp "${helper}" "$scratch/release/Helper" && echo built >> "${folder}/builds.log" ;;
+esac
+`);
+      fs.chmodSync(helper, 0o755);
+      fs.chmodSync(swift, 0o755);
+      return swift;
+    }
+
+    test("builds the package once and runs a function with one JSON value per argument", async () => {
+      const extDir = makeExtension(
+        {
+          "src/remind.ts": `import { addReminder, removeReminder, clearAll } from "swift:../swift/Reminders";
+export default async () => [await addReminder({ title: "Milk", due: undefined }, 2), await removeReminder("x"), await clearAll()];`,
+          "swift/Reminders/Package.swift": "",
+        },
+        "remind",
+      );
+      process.env.FLOE_SWIFT = fakeSwift(extDir);
+      try {
+        const command = (await import(await bundle(findEntry()))).default;
+
+        expect(await command()).toEqual([
+          { called: "addReminder", args: [{ title: "Milk", due: null }, 2] },
+          { called: "removeReminder", args: ["x"] },
+          { called: "clearAll", args: [] },
+        ]);
+        expect(fs.readFileSync(path.join(extDir, "builds.log"), "utf8")).toBe("built\n");
+        expect(fs.existsSync(path.join(ctx.dataPath, "swift", "Reminders", "release", "Helper"))).toBe(true);
+        const toasts = sent("toast");
+        expect(toasts.at(-1)).toMatchObject({ title: "Building this extension's Swift code", hidden: true });
+      } finally {
+        delete process.env.FLOE_SWIFT;
+      }
+    });
+
+    test("a function that throws rejects with a SwiftError carrying what Swift printed, and nothing printed is null", async () => {
+      const extDir = makeExtension(
+        {
+          "src/fails.ts": `import { fail, nothing } from "swift:../swift/Helper";
+export default async () => ({ nothing: await nothing(), error: await fail().catch((error: Error & { stderr: string }) => [error.name, error.message, error.stderr]) });`,
+        },
+        "fails",
+      );
+      process.env.FLOE_SWIFT = fakeSwift(extDir);
+      try {
+        const command = (await import(await bundle(findEntry()))).default;
+
+        expect(await command()).toEqual({ nothing: null, error: ["SwiftError", 'nope("why")', 'nope("why")'] });
+      } finally {
+        delete process.env.FLOE_SWIFT;
+      }
+    });
+  });
+
+  // Converter's form says placeholder="&#xXXXX;", which esbuild keeps as text and Bun refuses to read.
+  test("an entity Bun can't read in a JSX attribute is kept as text, and the same letters in code are left alone", async () => {
+    makeExtension(
+      {
+        "src/entities.tsx": `const split = (text: string) => text.split("&#x");
+export default () => ({ attribute: (<a title="as &#xXXXX; or &#x41;" />).props.title, code: split("a&#xb") });`,
+      },
+      "entities",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toEqual({ attribute: "as &#xXXXX; or A", code: ["a", "b"] });
+  });
+
+  // File Manager does a default import of a package whose module build exports only names, as Node's build allows.
+  test("a default import that only the package's CommonJS main has is built from that main", async () => {
+    makeExtension(
+      {
+        "src/ignore.ts": 'import parser from "dual";\nexport default () => parser.parse("x");',
+        "node_modules/dual/package.json": '{ "name": "dual", "main": "main.js", "module": "module.mjs" }',
+        "node_modules/dual/main.js": "exports.parse = (text) => `cjs ${text}`;",
+        "node_modules/dual/module.mjs": "export const parse = (text) => `esm ${text}`;",
+      },
+      "ignore",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toBe("cjs x");
+  });
+
+  // Twitter imports parseTweet, which twitter-text's module build does not export.
+  test("a named import that only the package's CommonJS main has is built from that main", async () => {
+    makeExtension(
+      {
+        "src/tweet.ts": 'import { parseTweet } from "split";\nexport default () => parseTweet("hi");',
+        "node_modules/split/package.json": '{ "name": "split", "main": "main.js", "module": "module.mjs" }',
+        "node_modules/split/main.js": "exports.parseTweet = (text) => text.length;",
+        "node_modules/split/module.mjs": "export const other = 1;",
+      },
+      "tweet",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toBe(2);
+  });
+
+  // got requires electron only inside Electron, and node-ssdp a coverage build only when one is asked for.
+  test("a dependency's require of something missing, in a branch that never runs, builds as an empty module", async () => {
+    makeExtension(
+      {
+        "src/net.ts": 'import got from "got-like";\nexport default () => got();',
+        "node_modules/got-like/package.json": '{ "name": "got-like", "main": "index.js" }',
+        "node_modules/got-like/index.js": 'module.exports = () => (process.versions.electron ? require("electron").net : require.resolve && process.env.COVERAGE ? require("./lib-cov") : "plain");',
+      },
+      "net",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toBe("plain");
+  });
+
+  test("a missing import in the extension's own code still stops the build", async () => {
+    makeExtension({ "src/broken.ts": 'import { thing } from "./nowhere";\nexport default () => thing;' }, "broken");
+    await expect(bundle(findEntry())).rejects.toThrow("nowhere");
+  });
+
+  // Bun builds these three to its own modules, which drop certificate and proxy settings written for Node.
+  test("node-fetch, undici and ws are Floe's stand-ins, whatever the extension installed", async () => {
+    makeExtension(
+      {
+        "src/net.ts": `import fetch from "node-fetch";
+import { Agent } from "undici";
+import WebSocket from "ws";
+export default () => ({ fetch, Agent, WebSocket });`,
+      },
+      "net",
+    );
+    const parts = (await import(await bundle(findEntry()))).default();
+
+    expect(parts.fetch).toBe(require("../compat/node-fetch.ts"));
+    expect(parts.Agent).toBe(require("../compat/undici.ts").Agent);
+    expect(parts.WebSocket).toBe(require("../compat/ws.ts"));
+  });
+
+  // Dropshare's React Query batches through react-dom 18, which reads internals React 19 no longer has.
+  test("react-dom is Floe's own, whose batching runs the function, whatever the extension installed", async () => {
+    makeExtension({ "src/batch.ts": 'import { unstable_batchedUpdates } from "react-dom";\nexport default () => unstable_batchedUpdates(() => "ran");' }, "batch");
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toBe("ran");
+  });
+
+  // zustand's module build reads Vite's import.meta.env, which a CommonJS bundle could not even load.
+  test("import.meta in a CommonJS build has the command file's place, and no Vite env", async () => {
+    const extDir = makeExtension(
+      { "src/meta.ts": 'export default () => ({ env: import.meta.env ? "vite" : "none", url: import.meta.url, dirname: import.meta.dirname });' },
+      "meta",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toEqual({ env: "none", url: Bun.pathToFileURL(path.join(extDir, "meta.js")).href, dirname: extDir });
+  });
+
+  test("import.meta.resolve in a CommonJS build resolves from the extension's folder", async () => {
+    const extDir = makeExtension(
+      {
+        "src/resolve.ts": 'export default () => import.meta.resolve("worker-pkg");',
+        "node_modules/worker-pkg/package.json": '{ "name": "worker-pkg", "main": "worker.js" }',
+        "node_modules/worker-pkg/worker.js": "",
+      },
+      "resolve",
+    );
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toBe(Bun.pathToFileURL(fs.realpathSync(path.join(extDir, "node_modules/worker-pkg/worker.js"))).href);
+  });
+
+  test("better-sqlite3 is bun:sqlite underneath, even with no copy of its own installed", async () => {
+    makeExtension({ "src/db.ts": 'import Database from "better-sqlite3-multiple-ciphers";\nexport default () => new Database().prepare("SELECT 1 + 1 AS two").get();' }, "db");
+    const command = (await import(await bundle(findEntry()))).default;
+
+    expect(command()).toEqual({ two: 2 });
   });
 
   // A bundle cached from before was built as an ES module, and one of those fails only when it is imported.
@@ -321,6 +531,6 @@ export default async () => {
   test("fails with the build messages when the command does not compile", async () => {
     makeExtension({ "src/broken.ts": 'import { nothing } from "./does-not-exist";\nexport default nothing;' }, "broken");
     await expect(bundle(findEntry())).rejects.toThrow(/does-not-exist/);
-    expect(fs.existsSync(path.join(ctx.supportPath, "build", "broken.fingerprint"))).toBe(false);
+    expect(fs.existsSync(path.join(ctx.dataPath, "build", "broken.fingerprint"))).toBe(false);
   });
 });

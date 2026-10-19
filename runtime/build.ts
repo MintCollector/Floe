@@ -9,6 +9,7 @@
 // which host.ts fills in before calling.
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { ctx } from "./bridge";
 
 // Bundle the command so that @raycast/api points at our shim and React at the host's copy,
@@ -18,7 +19,7 @@ export const shimPath = path.join(import.meta.dir, "api/index.ts");
 // import. A command with a top-level await cannot be CommonJS, so that one is built as a module.
 const formats = ["cjs", "esm"] as const;
 export async function bundle(entry: string): Promise<string> {
-  const outdir = path.join(ctx.supportPath, "build");
+  const outdir = path.join(ctx.dataPath, "build");
   const output = path.join(outdir, `${ctx.commandName}.js`);
   const stamp = path.join(outdir, `${ctx.commandName}.fingerprint`);
   const current = fingerprint(entry);
@@ -27,10 +28,22 @@ export async function bundle(entry: string): Promise<string> {
   const started = performance.now();
   const result = await build(entry, outdir);
   if (!result.success) throw new Error(result.logs.map(String).join("\n"));
+  useCompatModules(output);
   fs.writeFileSync(stamp, current);
   // host.ts points console at stderr, so this never lands on the protocol stream.
   console.error(`bundled ${ctx.manifest.name}/${ctx.commandName} in ${Math.round(performance.now() - started)} ms`);
   return output;
+}
+
+// Bun builds these names to its own modules whatever the extension installed, and calls no plugin for them, so the
+// finished bundle is pointed at Floe's stand-ins, which take the Node options Bun's ignore.
+const compatDir = path.join(import.meta.dir, "compat");
+function useCompatModules(output: string) {
+  const code = fs.readFileSync(output, "utf8");
+  const pointed = code.replace(/(require\(|from\s*)"(node-fetch|undici|ws)"/g, (_match, lead: string, name: string) =>
+    lead + JSON.stringify(path.join(compatDir, name + ".ts")),
+  );
+  if (pointed !== code) fs.writeFileSync(output, pointed);
 }
 
 function readText(file: string): string | undefined {
@@ -68,6 +81,7 @@ export function fingerprint(entry: string): string {
     formats,
     shim: shimPath,
     shimChanged: newestChange(path.join(import.meta.dir, "api")),
+    compat: newestChange(compatDir),
     react: require.resolve("react"),
     bun: Bun.version,
   });
@@ -76,33 +90,99 @@ export function fingerprint(entry: string): string {
 async function build(entry: string, outdir: string) {
   try {
     return await buildUnchecked(entry, outdir, "cjs");
-  } catch {
-    return buildAs(entry, outdir, "esm");
-  }
-}
-
-async function buildAs(entry: string, outdir: string, format: (typeof formats)[number]) {
-  try {
-    return await buildUnchecked(entry, outdir, format);
   } catch (error) {
-    // Bun throws an AggregateError whose useful text is in the individual build messages.
-    const messages = (error as AggregateError).errors?.map(String).join("\n");
-    throw new Error(messages || String(error));
+    const retry = retryFor(error);
+    return buildAs(entry, outdir, Object.values(retry).some(Boolean) ? "cjs" : "esm", retry);
   }
 }
 
-function buildUnchecked(entry: string, outdir: string, format: (typeof formats)[number]) {
+// What stopped the first build that Raycast's esbuild goes past. Anything else is retried as a module, for a
+// command with a top-level await.
+function retryFor(error: unknown): Retry {
+  const message = describe(error);
+  // A dependency's import of something that isn't installed, such as got's of electron or an optional peer, sits in
+  // code that never runs here. It builds as an empty module: nothing is looked up, or fetched, when the command runs.
+  const unresolved = ((error as AggregateError).errors ?? [])
+    .filter((item) => item?.name === "ResolveMessage" && String(item.position?.file).includes("/node_modules/"))
+    .map((item) => `${item.position.file}\0${item.specifier}`);
+  return {
+    entities: message.includes("Invalid JSX entity escape"),
+    // Default imports (File Manager) and named ones (Twitter's parseTweet) that only a package's CommonJS main has.
+    preferMain: /No matching export in "[^"]*node_modules[^"]*" for import "/.test(message),
+    unresolved: unresolved.length > 0 ? new Set(unresolved) : undefined,
+  };
+}
+
+// Bun throws an AggregateError whose useful text is in the individual build messages.
+function describe(error: unknown): string {
+  return (error as AggregateError).errors?.map(String).join("\n") || String(error as Error);
+}
+
+// What a second build does differently, after the first stopped where Raycast's esbuild would have gone on.
+type Retry = { entities?: boolean; preferMain?: boolean; unresolved?: Set<string> };
+
+async function buildAs(entry: string, outdir: string, format: (typeof formats)[number], retry: Retry = {}) {
+  try {
+    return await buildUnchecked(entry, outdir, format, retry);
+  } catch (error) {
+    throw new Error(describe(error));
+  }
+}
+
+// esbuild, which Raycast builds with, keeps an entity it can't read as plain text, as Converter's placeholder="&#xXXXX;";
+// Bun stops. Only attribute values written name="…" are touched, since the same letters in code are code.
+function escapeUnreadableEntities(source: string): string {
+  return source.replace(/(\s[\w:-]+=")([^"]*)"/g, (_match, lead: string, value: string) =>
+    `${lead}${value.replace(/&#(?!(?:x[0-9a-fA-F]+|\d+);)/g, "&amp;#")}"`,
+  );
+}
+
+// Raycast builds for Node, which takes a package's CommonJS main over its module build; an import of a name the
+// module build lacks only works there. Packages with an exports map say for themselves.
+function commonJSMain(specifier: string, importer: string): string | undefined {
+  try {
+    const manifestPath = Bun.resolveSync(`${specifier}/package.json`, path.dirname(importer));
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    if (manifest.exports || !manifest.main || !manifest.module) return undefined;
+    return Bun.resolveSync(`./${manifest.main}`, path.dirname(manifestPath));
+  } catch {
+    return undefined;
+  }
+}
+
+// The members extensions read, for the same file __filename names; Vite's env is not there, as under Node.
+function importMeta(): Record<string, string> {
+  const file = path.join(ctx.extDir, `${ctx.commandName}.js`);
+  return {
+    "import.meta.env": "undefined",
+    "import.meta.url": JSON.stringify(pathToFileURL(file).href),
+    "import.meta.filename": JSON.stringify(file),
+    "import.meta.dirname": JSON.stringify(ctx.extDir),
+    // A function, which define cannot hold, so the banner below declares it; Jev's PDF library resolves its worker.
+    "import.meta.resolve": "__floeImportMetaResolve",
+  };
+}
+
+// Resolves from the extension's folder, where its node_modules are, as a module there would.
+function importMetaResolveBanner(): string {
+  return `var __floeImportMetaResolve = (specifier) => require("node:url").pathToFileURL(Bun.resolveSync(specifier, ${JSON.stringify(ctx.extDir)})).href;`;
+}
+
+function buildUnchecked(entry: string, outdir: string, format: (typeof formats)[number], retry: Retry = {}) {
   return Bun.build({
     entrypoints: [entry],
     outdir,
     target: "bun",
     format,
     naming: `${ctx.commandName}.js`,
+    banner: format === "cjs" ? importMetaResolveBanner() : undefined,
     // Raycast's own build leaves one file per command at the extension's root, and extensions find their
     // assets from there. Bun would put each source file's own folder in its place.
     define: {
       __dirname: JSON.stringify(ctx.extDir),
       __filename: JSON.stringify(path.join(ctx.extDir, `${ctx.commandName}.js`)),
+      // CommonJS has no import.meta, so a module build that reads it (zustand's import.meta.env) would not even load.
+      ...(format === "cjs" ? importMeta() : {}),
     },
     plugins: [
       {
@@ -122,10 +202,68 @@ function buildUnchecked(entry: string, outdir: string, format: (typeof formats)[
             loader: "js",
             contents: `import { readFileSync } from "node:fs";\nexport default new WebAssembly.Module(readFileSync(${JSON.stringify(args.path)}));`,
           }));
+          if (retry.unresolved) {
+            const unresolved = retry.unresolved;
+            build.onResolve({ filter: /.*/ }, (args) => (unresolved.has(`${args.importer}\0${args.path}`) ? { path: args.path, namespace: "missing" } : undefined));
+            build.onLoad({ filter: /.*/, namespace: "missing" }, () => ({ loader: "js", contents: "module.exports = {};" }));
+          }
+          if (retry.preferMain) {
+            build.onResolve({ filter: /^(@[^/]+\/)?[^./@][^/]*$/ }, (args) => {
+              const main = commonJSMain(args.path, args.importer);
+              return main ? { path: main } : undefined;
+            });
+          }
+          if (retry.entities) {
+            build.onLoad({ filter: /\.[jt]sx$/ }, (args) =>
+              args.path.includes("/node_modules/")
+                ? undefined
+                : { loader: args.path.endsWith(".tsx") ? "tsx" : "jsx", contents: escapeUnreadableEntities(fs.readFileSync(args.path, "utf8")) },
+            );
+          }
+          build.onResolve({ filter: /^react-dom$/ }, () => ({ path: path.join(compatDir, "react-dom.ts"), external: true }));
+          // A V8 addon Bun cannot load, whichever build of it the extension installed.
+          build.onResolve({ filter: /^better-sqlite3(-multiple-ciphers)?$/ }, () => ({ path: path.join(compatDir, "better-sqlite3.ts"), external: true }));
+          // Outside the bundle, like the shim, so the toast it shows while building is the shim's own.
+          build.onResolve({ filter: /^floe:native$/ }, () => ({ path: path.join(import.meta.dir, "native.ts"), external: true }));
+          // Each importer gets its own copy, holding the names it imports. Bun passes no pluginData from here to onLoad,
+          // so the importer travels in the path.
+          build.onResolve({ filter: /^(swift|rust):/ }, (args) => ({ path: `${args.importer}|${args.path}`, namespace: "native" }));
+          build.onLoad({ filter: /.*/, namespace: "native" }, (args) => {
+            const [importer, specifier] = splitLast(args.path, "|");
+            return { loader: "js", contents: nativeStub(specifier, importer, readText(importer) ?? "") };
+          });
         },
       },
     ],
   });
+}
+
+function splitLast(text: string, separator: string): [string, string] {
+  const index = text.lastIndexOf(separator);
+  return [text.slice(0, index), text.slice(index + separator.length)];
+}
+
+// An extension's swift: package is built on the first call and run per call (native.ts). Raycast builds rust: code
+// for Windows alone and its macOS stub rejects every call, so commands that call it only on Windows run here too.
+export function nativeStub(specifier: string, importer: string, importerSource: string): string {
+  const quoted = specifier.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const imports = new RegExp(String.raw`import\s+(?:type\s+)?(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s*from\s*["']${quoted}["']`, "g");
+  const names = new Set<string>();
+  for (const match of importerSource.matchAll(imports)) {
+    for (const part of match[1].split(",")) {
+      // "a as b" imports a; "type a" imports nothing that runs.
+      const [name, next] = part.trim().split(/\s+/);
+      if (name === "type" && next && next !== "as") continue;
+      if (/^[\w$]+$/.test(name)) names.add(name);
+    }
+  }
+  if (specifier.startsWith("rust:")) {
+    const rejected = `() => Promise.reject(new Error("Rust functions are not supported on macOS"))`;
+    return [...[...names].map((name) => `export const ${name} = ${rejected};`), "export default {};"].join("\n");
+  }
+  const packageDir = path.resolve(path.dirname(importer), specifier.slice("swift:".length));
+  const call = (name: string) => `export const ${name} = (...args) => runSwiftFunction(${JSON.stringify(packageDir)}, ${JSON.stringify(name)}, args);`;
+  return ['import { runSwiftFunction } from "floe:native";', ...[...names].map(call), "export default {};"].join("\n");
 }
 
 export function findEntry(): string {

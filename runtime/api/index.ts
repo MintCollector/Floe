@@ -14,6 +14,7 @@ import { ctx, request, send, setPopHandler, setPopToRootHandler } from "../bridg
 import { flushCaches } from "../cache";
 import { createLocalStorage, storagePersistence } from "../local-storage";
 import { render as mount } from "../renderer";
+import { BrowserExtension } from "./browser";
 import { colorNames, iconNames } from "./names";
 
 const h = React.createElement;
@@ -90,17 +91,23 @@ const metadata = (prefix: string) =>
   });
 
 // Raycast calls a search bar dropdown's onChange once on mount with the initial value; extensions rely on it.
-function firstDropdownValue(children: React.ReactNode): string | undefined {
+function dropdownValues(children: React.ReactNode, found: string[] = []): string[] {
   for (const child of React.Children.toArray(children)) {
     if (!React.isValidElement(child)) continue;
     const props = child.props as Props;
-    if (props.value !== undefined && props.title !== undefined) return props.value;
-    const nested = firstDropdownValue(props.children);
-    if (nested !== undefined) return nested;
+    if (props.value !== undefined && props.title !== undefined) found.push(props.value);
+    else dropdownValues(props.children, found);
   }
-  return undefined;
+  return found;
 }
-const dropdownStore = () => path.join(ctx.supportPath, "dropdown-values.json");
+
+// A stored or default value that no item has, as The Verge's defaultValue "Top" for an item whose value is a URL,
+// starts on the first item, as in Raycast. With no items yet there is nothing to check it against.
+function startingDropdownValue(candidate: string | undefined, children: React.ReactNode): string | undefined {
+  const values = dropdownValues(children);
+  return candidate !== undefined && (values.length === 0 || values.includes(candidate)) ? candidate : values[0];
+}
+const dropdownStore = () => path.join(ctx.dataPath, "dropdown-values.json");
 const dropdown = (prefix: string) => {
   const Host = host(`${prefix}.Dropdown`);
   const Dropdown = (props: Props) => {
@@ -108,9 +115,7 @@ const dropdown = (prefix: string) => {
     const [value, setValue] = useState<string | undefined>(
       () =>
         props.value ??
-        (props.storeValue ? readJSON(dropdownStore())[storeKey] : undefined) ??
-        props.defaultValue ??
-        firstDropdownValue(props.children),
+        startingDropdownValue((props.storeValue ? readJSON(dropdownStore())[storeKey] : undefined) ?? props.defaultValue, props.children),
     );
     useEffect(() => {
       if (value !== undefined) props.onChange?.(value);
@@ -125,7 +130,16 @@ const dropdown = (prefix: string) => {
   return Object.assign(Dropdown, { Item: host("Dropdown.Item"), Section: host("Dropdown.Section") });
 };
 
-export const List = Object.assign(host("List", ["actions", "searchBarAccessory"]), {
+// pagination's onLoadMore goes as a handler of its own: a function inside an object prop is dropped on the way to the app.
+function paginated(type: string) {
+  const component = host(type, ["actions", "searchBarAccessory"]);
+  const wrapper = ({ pagination, ...props }: Props) =>
+    h(component, pagination ? { ...props, onLoadMore: pagination.onLoadMore, hasMore: pagination.hasMore, pageSize: pagination.pageSize } : props);
+  wrapper.displayName = type;
+  return wrapper;
+}
+
+export const List = Object.assign(paginated("List"), {
   Item: Object.assign(host("List.Item", ["actions", "detail"]), {
     Detail: Object.assign(host("List.Item.Detail", ["metadata"]), { Metadata: metadata("List.Item.Detail") }),
   }),
@@ -134,12 +148,12 @@ export const List = Object.assign(host("List", ["actions", "searchBarAccessory"]
   Dropdown: dropdown("List"),
 });
 
-export const Grid = Object.assign(host("Grid", ["actions", "searchBarAccessory"]), {
+export const Grid = Object.assign(paginated("Grid"), {
   Item: host("Grid.Item", ["actions"]),
   Section: host("Grid.Section"),
   EmptyView: host("EmptyView", ["actions"]),
   Dropdown: dropdown("Grid"),
-  Inset: { Small: "small", Medium: "medium", Large: "large" },
+  Inset: { Zero: "zero", Small: "sm", Medium: "md", Large: "lg" },
   ItemSize: { Small: "small", Medium: "medium", Large: "large" },
   Fit: { Contain: "contain", Fill: "fill" },
 });
@@ -181,6 +195,8 @@ export const Form = Object.assign(host("Form", ["actions", "searchBarAccessory"]
   Separator: host("Form.Separator"),
   LinkAccessory: host("Form.LinkAccessory"),
 });
+// The older spellings, which extensions built against API 1.x still use; Conventional Comments draws Form.DropdownItem.
+Object.assign(Form, { DropdownItem: Form.Dropdown.Item, DropdownSection: Form.Dropdown.Section, TagPickerItem: Form.TagPicker.Item });
 
 export const MenuBarExtra = Object.assign(host("MenuBarExtra"), {
   Item: host("MenuBarExtra.Item"),
@@ -203,6 +219,73 @@ function action(defaultTitle: string, defaultIcon: string, run: (props: Props, n
       onAction: () => run(props, navigation),
     });
   };
+}
+
+// A submenu of the apps that can open the file, asked for when it opens; the system's default is first.
+function OpenWithSubmenu(props: Props) {
+  const [apps, setApps] = useState<Application[]>();
+  const choose = async (app: Application) => {
+    await open(props.path, app);
+    props.onOpen?.(props.path);
+    await closeMainWindow();
+  };
+  return h(
+    "ActionPanel.Submenu",
+    {
+      title: props.title ?? "Open With",
+      icon: props.icon ?? "icon:Finder",
+      shortcut: macShortcut(props.shortcut),
+      onOpen: () => {
+        if (!apps) getApplications(props.path).then(setApps, () => setApps([]));
+      },
+    },
+    ...(apps ?? []).map((app) => h("Action", { key: app.path, title: app.name, icon: { fileIcon: app.path }, onAction: () => choose(app) })),
+  );
+}
+
+// As in Raycast, a snippet or a quicklink is kept only once the user confirms the form the extension filled in.
+function keepForm(method: string, title: string, kept: string, fields: unknown[]) {
+  const { pop } = useNavigation();
+  const keep = async (values: Props) => {
+    try {
+      await request(method, values);
+      await showToast({ style: Toast.Style.Success, title: kept });
+      pop();
+    } catch (error) {
+      await showToast({ style: Toast.Style.Failure, title: error instanceof Error ? error.message : String(error) });
+    }
+  };
+  return h(Form, { navigationTitle: title, actions: h(ActionPanel, null, h(Action.SubmitForm, { title, onSubmit: keep })) }, ...fields);
+}
+
+function SnippetForm({ snippet }: Props) {
+  return keepForm("snippet.create", "Create Snippet", "Snippet saved", [
+    h(Form.TextField, { id: "name", title: "Name", defaultValue: snippet.name ?? "" }),
+    h(Form.TextArea, { id: "text", title: "Snippet", defaultValue: snippet.text ?? "" }),
+    h(Form.TextField, { id: "keyword", title: "Keyword", defaultValue: snippet.keyword ?? "" }),
+  ]);
+}
+
+function QuicklinkForm({ quicklink }: Props) {
+  return keepForm("quicklink.create", "Create Quicklink", "Quicklink saved", [
+    h(Form.TextField, { id: "name", title: "Name", defaultValue: quicklink.name ?? "" }),
+    h(Form.TextField, { id: "link", title: "Link", defaultValue: quicklink.link ?? "" }),
+    h(Form.TextField, { id: "keyword", title: "Keyword", defaultValue: "" }),
+  ]);
+}
+
+// The date goes to onChange once picked; the form closes and the extension's view is back.
+function DateForm(props: Props) {
+  const { pop } = useNavigation();
+  const pick = (values: Props) => {
+    props.onChange?.(values.date ?? null);
+    pop();
+  };
+  return h(
+    Form,
+    { navigationTitle: props.title ?? "Pick Date", actions: h(ActionPanel, null, h(Action.SubmitForm, { title: props.title ?? "Pick Date", onSubmit: pick })) },
+    h(Form.DatePicker, { id: "date", title: "Date", type: props.type ?? "dateTime", min: props.min, max: props.max, defaultValue: props.min }),
+  );
 }
 
 export const Action = Object.assign(BaseAction, {
@@ -241,11 +324,16 @@ export const Action = Object.assign(BaseAction, {
   }),
   SubmitForm: (props: Props) =>
     h("Action", { title: props.title ?? "Submit", icon: props.icon, shortcut: macShortcut(props.shortcut), isSubmit: true, onSubmit: props.onSubmit }),
-  OpenWith: action("Open With", "Finder", (props) => open(props.path)),
-  ToggleQuickLook: action("Quick Look", "Eye", () => unsupported("Quick Look")),
-  CreateSnippet: action("Create Snippet", "Document", () => unsupported("Snippets")),
-  CreateQuicklink: action("Create Quicklink", "Link", () => unsupported("Quicklinks")),
-  PickDate: Object.assign(action("Pick Date", "Calendar", () => unsupported("Date picker")), {
+  OpenWith: OpenWithSubmenu,
+  // The app previews the selected item's quickLook file, or closes the preview it shows.
+  ToggleQuickLook: action("Quick Look", "Eye", () => send({ type: "toggleQuickLook" })),
+  CreateSnippet: action("Create Snippet", "Document", (props, navigation) => navigation.push(h(SnippetForm, { snippet: props.snippet ?? {} }))),
+  CreateQuicklink: action("Create Quicklink", "Link", (props, navigation) =>
+    navigation.push(h(QuicklinkForm, { quicklink: props.quicklink ?? {} })),
+  ),
+  // Raycast adds the server to its own AI settings, which Floe has no counterpart for.
+  InstallMCPServer: action("Install MCP Server", "Plug", () => showToast({ style: Toast.Style.Failure, title: "Floe can't install MCP servers" })),
+  PickDate: Object.assign(action("Pick Date", "Calendar", (props, navigation) => navigation.push(h(DateForm, props))), {
     Type: { Date: "date", DateTime: "dateTime" },
     isFullDay,
   }),
@@ -258,10 +346,6 @@ export const ActionPanel = Object.assign(host("ActionPanel"), {
 });
 
 // Feedback
-
-function unsupported(feature: string) {
-  return showToast({ style: Toast.Style.Failure, title: `${feature} isn't supported yet` });
-}
 
 // Extensions hand a caught Error to a toast as its text. As JSON it would be {}, which the app shows as nothing.
 const toastText = (value: unknown) => (value == null ? undefined : value instanceof Error ? value.message : String(value));
@@ -426,7 +510,8 @@ export function getSelectedFinderItems(): Promise<{ path: string }[]> {
 }
 type Application = { name: string; path: string; bundleId?: string };
 let applications: Application[] | undefined;
-export function getApplications(_path?: string): Promise<Application[]> {
+export function getApplications(file?: string): Promise<Application[]> {
+  if (file) return request<Application[]>("environment.getApplications", { path: file });
   applications ??= Bun.spawnSync(["mdfind", "-attr", "kMDItemCFBundleIdentifier", "kMDItemContentType == 'com.apple.application-bundle'"])
     .stdout.toString()
     .split("\n")
@@ -460,7 +545,7 @@ function readJSON(file: string): Record<string, any> {
   }
 }
 // The implementation lives in local-storage.ts; the file is the extension's, shared by all of its commands.
-export const LocalStorage = createLocalStorage(() => path.join(ctx.supportPath, "local-storage.sqlite"));
+export const LocalStorage = createLocalStorage(() => path.join(ctx.dataPath, "local-storage.sqlite"));
 
 // The bounded implementation lives in cache.ts; this re-export keeps the API surface stable.
 export { Cache } from "../cache";
@@ -471,7 +556,7 @@ export function getPreferenceValues<T = Props>(): T {
   const command = ctx.manifest.commands?.find((candidate) => candidate.name === ctx.commandName);
   const declared = [...(ctx.manifest.preferences ?? []), ...(command?.preferences ?? [])];
   const defaults = Object.fromEntries(declared.filter((pref) => pref.default !== undefined).map((pref) => [pref.name, pref.default]));
-  return { ...defaults, ...readJSON(path.join(ctx.supportPath, "preferences.json")) } as T;
+  return { ...defaults, ...readJSON(path.join(ctx.dataPath, "preferences.json")) } as T;
 }
 export function openExtensionPreferences(): Promise<void> {
   send({ type: "openPreferences" });
@@ -503,15 +588,26 @@ export const environment = {
   get launchType() { return ctx.launchType; },
   // The app sets FLOE_AI when AI.ask has something to answer it: an installed tool or a filled-in API.
   // The selection and the clipboard it always answers; an extension that asks first must hear yes.
+  // BrowserExtension is read from the browser itself; a call says why when no browser Floe can read is open.
   canAccess: (api: unknown) =>
-    api === AI || api === "AI" ? process.env.FLOE_AI === "1" : api === Clipboard || api === getSelectedText || api === getSelectedFinderItems,
+    api === AI || api === "AI"
+      ? process.env.FLOE_AI === "1"
+      : api === Clipboard || api === getSelectedText || api === getSelectedFinderItems || api === BrowserExtension,
 };
 
-export function launchCommand(_options: Props): Promise<void> {
-  return Promise.reject(new Error("launchCommand isn't supported yet"));
+// The app starts the command, of this extension or another installed one, and answers once it has.
+export async function launchCommand(options: Props): Promise<void> {
+  await request("command.launch", {
+    name: options?.name,
+    type: options?.type,
+    extensionName: options?.extensionName,
+    arguments: options?.arguments ?? {},
+    context: options?.context ?? null,
+  });
 }
-// Subtitles set from a command aren't shown anywhere yet, so there is nothing to update.
-export function updateCommandMetadata(_metadata: Props): Promise<void> {
+// The subtitle shows beside the command in the root search until a null one puts the manifest's back.
+export function updateCommandMetadata(metadata: Props): Promise<void> {
+  send({ type: "commandMetadata", subtitle: typeof metadata?.subtitle === "string" ? metadata.subtitle : null });
   return done;
 }
 export function captureException(error: unknown) {
@@ -548,6 +644,7 @@ export const AI = {
   },
 };
 export { OAuth } from "./oauth";
+export { BrowserExtension };
 
 // Constants
 
@@ -627,13 +724,9 @@ export const preferences = new Proxy({} as Record<string, { value: unknown }>, {
   get: (_target, key) => ({ value: getPreferenceValues<Props>()[key as string] }),
 });
 
-// Raycast's browser extension and window manager, which Floe has no counterpart for. The names are here because
-// a missing export stops a command before it runs; environment.canAccess says no, and a call says why.
+// Raycast's window manager, which Floe has no counterpart for. The names are here because a missing export stops a
+// command before it runs; environment.canAccess says no, and a call says why.
 const refusing = (name: string) => (): Promise<never> => Promise.reject(new Error(`${name} isn't supported in Floe yet`));
-export const BrowserExtension = {
-  getTabs: refusing("BrowserExtension.getTabs"),
-  getContent: refusing("BrowserExtension.getContent"),
-};
 export const WindowManagement = {
   DesktopType: { User: "User", FullScreen: "FullScreen" },
   getDesktops: refusing("WindowManagement.getDesktops"),

@@ -8,6 +8,11 @@
 import AppKit
 import Foundation
 
+/// Why the app turned a request down, said to the extension as the request's error.
+nonisolated struct RequestRefusal: LocalizedError, Sendable {
+    let errorDescription: String?
+}
+
 /// Something an extension asks the app for and waits on: the host sends `request` with an id, a
 /// method and its parameters, and the app sends back `reply` with the same id and a result or an error.
 nonisolated enum HostRequest: Sendable, Equatable {
@@ -36,7 +41,7 @@ nonisolated enum HostRequest: Sendable, Equatable {
         switch self {
         case .oauthAuthorize, .oauthGetTokens, .oauthSetTokens, .oauthRemoveTokens:
             true
-        case .askAI, .selectedText, .selectedFinderItems, .clipboardRead, .frontmostApplication, .defaultApplication:
+        case .askAI, .selectedText, .selectedFinderItems, .clipboardRead, .frontmostApplication, .defaultApplication, .applications, .browserTabs, .browserScript:
             false
         }
     }
@@ -45,18 +50,25 @@ nonisolated enum HostRequest: Sendable, Equatable {
     case selectedText
     /// `getSelectedFinderItems`: the Finder's selection, when Finder is frontmost.
     case selectedFinderItems
-    /// `Clipboard.read`: the pasteboard as text, HTML and file.
-    case clipboardRead
+    /// `Clipboard.read`: the pasteboard as text, HTML and file. With an offset, a copy before it, which the session
+    /// answers from Floe's history.
+    case clipboardRead(offset: Int)
     /// `getFrontmostApplication`: the app the user is in, as name, path and bundle id.
     case frontmostApplication
     /// `getDefaultApplication`: the app that would open the file at a path.
     case defaultApplication(path: String)
+    /// `getApplications(path)` and `Action.OpenWith`: every app that can open the file, the default first.
+    case applications(path: String)
+    /// `BrowserExtension.getTabs()`.
+    case browserTabs
+    /// `BrowserExtension.getContent()`: the runtime's script for the page, run in a tab.
+    case browserScript(javascript: String, tabID: Int?)
 
     /// Nil for a method the app doesn't know, or one whose parameters are missing.
     init?(method: String, params: [String: Any]) {
-        if method.hasPrefix("environment.") {
-            guard let environment = Self.environmentRequest(method: method, params: params) else { return nil }
-            self = environment
+        if let family = Self.families[String(method.prefix { $0 != "." })] {
+            guard let request = family(method, params) else { return nil }
+            self = request
             return
         }
         switch method {
@@ -88,13 +100,19 @@ nonisolated enum HostRequest: Sendable, Equatable {
         case "selectedFinderItems":
             self = .selectedFinderItems
         case "clipboard.read":
-            self = .clipboardRead
+            self = .clipboardRead(offset: max(params["offset"] as? Int ?? 0, 0))
         default:
             return nil
         }
     }
 
-    /// The `environment.*` methods, apart from the rest so the main switch stays readable.
+    /// Methods read apart from the main switch, by the word before their first dot, so it stays readable.
+    private static let families: [String: @Sendable (String, [String: Any]) -> HostRequest?] = [
+        "environment": environmentRequest,
+        "browser": browserRequest,
+    ]
+
+    /// The `environment.*` methods.
     private static func environmentRequest(method: String, params: [String: Any]) -> HostRequest? {
         switch method {
         case "environment.frontmostApplication":
@@ -102,6 +120,22 @@ nonisolated enum HostRequest: Sendable, Equatable {
         case "environment.getDefaultApplication":
             guard let path = params["path"] as? String else { return nil }
             return .defaultApplication(path: path)
+        case "environment.getApplications":
+            guard let path = params["path"] as? String else { return nil }
+            return .applications(path: path)
+        default:
+            return nil
+        }
+    }
+
+    /// The `BrowserExtension` methods.
+    private static func browserRequest(method: String, params: [String: Any]) -> HostRequest? {
+        switch method {
+        case "browser.tabs":
+            return .browserTabs
+        case "browser.script":
+            guard let javascript = params["javascript"] as? String else { return nil }
+            return .browserScript(javascript: javascript, tabID: params["tabId"] as? Int)
         default:
             return nil
         }
@@ -130,7 +164,18 @@ nonisolated enum HostRequest: Sendable, Equatable {
             return await MainActor.run { Self.frontmostApplication() } as Any
         case let .defaultApplication(path):
             return await MainActor.run { Self.defaultApplication(forFileAt: path) } as Any
+        case let .applications(path):
+            return Self.applications(forFileAt: path)
+        case .browserTabs:
+            return try await BrowserExtensionBridge.tabs(frontmost: frontmostBundleID(), run: AppleScript.execute)
+        case let .browserScript(javascript, tabID):
+            return try await BrowserExtensionBridge.run(javascript, tabID: tabID, frontmost: frontmostBundleID(), run: AppleScript.execute)
         }
+    }
+
+    /// The frontmost app's bundle id, which says which browser BrowserExtension reads.
+    private static func frontmostBundleID() async -> String? {
+        await MainActor.run { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
     }
 
     /// The frontmost app as the API's Application: name, path and bundle id. Nil when nothing is
@@ -146,6 +191,14 @@ nonisolated enum HostRequest: Sendable, Equatable {
         var application = ["name": name ?? url.deletingPathExtension().lastPathComponent, "path": url.path]
         application["bundleId"] = Bundle(url: url)?.bundleIdentifier
         return application
+    }
+
+    /// The apps that can open the file, the one the system would use first, each once.
+    nonisolated static func applications(forFileAt path: String) -> [[String: String]] {
+        let file = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        let preferred = NSWorkspace.shared.urlForApplication(toOpen: file)
+        let urls = (preferred.map { [$0] } ?? []) + NSWorkspace.shared.urlsForApplications(toOpen: file).filter { $0 != preferred }
+        return urls.map { application(at: $0) }
     }
 
     /// The app the system would open the file with. Nil when it names none, which the caller
