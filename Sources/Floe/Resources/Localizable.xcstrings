@@ -44,8 +44,8 @@
     "%@ can check for updates automatically. You can also check manually from the menu bar or Settings › About." : {
       "comment" : "The placeholder is the name of this app."
     },
-    "%@ can show in the menu bar. Floe adds a menu bar command only when you ask, and you can change this later under General." : {
-      "comment" : "The placeholder is the names of one or more commands. General is the name of a settings page."
+    "%@ can show in the menu bar. Floe adds a menu bar command only when you ask, and you can change this later under Commands." : {
+      "comment" : "The placeholder is the names of one or more commands. Commands is the name of a settings page."
     },
     "%@ could not be run." : {
       "comment" : "The placeholder is the name of the command that could not run."
@@ -526,8 +526,14 @@
     "A source that sends questions elsewhere is refused, for Ask AI and for extensions. Nothing else is asked in its place." : {
 
     },
+    "A timer posts a notification with a sound when it ends." : {
+
+    },
+    "A timer tells you when it ends." : {
+      "comment" : "One line on a permission card in the welcome."
+    },
     "AI" : {
-      "comment" : "The heading over the settings for artificial intelligence.\nThe kind of a result, shown beside its title. Short for artificial intelligence."
+      "comment" : "The heading over the settings for artificial intelligence.\nThe kind of a result, shown beside its title. Short for artificial intelligence.\nThe name of a settings page."
     },
     "AI can't answer yet. %@ is not installed. Install it and sign in, or choose another tool." : {
       "comment" : "The placeholder is the name of a command line tool such as claude."
@@ -556,10 +562,10 @@
     "AI can't answer yet. It needs an address that starts with http:// or https://." : {
 
     },
-    "AI is set to answer with %@, which is not installed. Install it and sign in, or choose another tool under Settings › General › AI." : {
+    "AI is set to answer with %@, which is not installed. Install it and sign in, or choose another tool under Settings › AI." : {
       "comment" : "The placeholder is the name of a command line tool such as claude."
     },
-    "AI is set to use an API, but its address, model or key is missing. Fill them in under Settings › General › AI." : {
+    "AI is set to use an API, but its address, model or key is missing. Fill them in under Settings › AI." : {
 
     },
     "AI needs a command line tool to answer: claude, codex, opencode or pi, installed and signed in." : {
@@ -664,6 +670,9 @@
     "Add to Menu Bar" : {
 
     },
+    "Add to Notes" : {
+      "comment" : "A result row in a demo of the welcome tour."
+    },
     "Added a line to the note %@" : {
       "comment" : "A receipt. The placeholder is the name of a note's file, such as 2026-10-08."
     },
@@ -712,11 +721,8 @@
     "Alias" : {
       "comment" : "A short name typed in the search to find a command."
     },
-    "Aliases and hotkeys for apps" : {
-
-    },
-    "Aliases and hotkeys for apps." : {
-
+    "Aliases, hotkeys and settings, the same on all your Macs." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Aliases, hotkeys, favorites and appearance are replaced by the file's. Passwords aren't included in exports." : {
 
@@ -880,6 +886,9 @@
     "Ask" : {
       "comment" : "A verb on a button: send the question to AI."
     },
+    "Ask AI" : {
+
+    },
     "Ask AI a question" : {
 
     },
@@ -912,6 +921,9 @@
     },
     "Back" : {
       "comment" : "A button that returns to the search."
+    },
+    "Background" : {
+      "comment" : "A command that runs without a window of its own."
     },
     "Base" : {
       "comment" : "A label on the calculator result that says what kind of calculation it is."
@@ -965,9 +977,6 @@
       "comment" : "A label before the build number of this app."
     },
     "Built-in Commands" : {
-
-    },
-    "Built-in, shell, script and menu bar commands" : {
 
     },
     "Built-in, shell, script and menu bar commands, and where extensions come from." : {
@@ -1091,7 +1100,7 @@
     "Choose Command" : {
       "comment" : "A button that runs the selected command of an app's menus."
     },
-    "Choose Floe for Clipboard in Settings → General to keep copies here." : {
+    "Choose Floe for Clipboard in Settings → Applications to keep copies here." : {
 
     },
     "Choose Icon…" : {
@@ -1205,6 +1214,9 @@
     "Connected" : {
       "comment" : "A badge saying Floe is connected to the Thaw app."
     },
+    "Connections" : {
+      "comment" : "A heading in the settings sidebar, over the AI, Sync and Extension Store pages."
+    },
     "Contact" : {
       "comment" : "The kind of a result, shown beside its title. Here a person from Contacts."
     },
@@ -1217,8 +1229,8 @@
     "Continue" : {
       "comment" : "The button that goes to the next step of the welcome window."
     },
-    "Continue Without Menu Bar Search" : {
-
+    "Continue Without Accessibility" : {
+      "comment" : "The button that leaves the permission step while Accessibility is not granted."
     },
     "Contribute" : {
       "comment" : "A button that opens the project page for people who want to help."
@@ -1337,6 +1349,12 @@
     "Copy Text from Screen" : {
       "comment" : "A command that reads the text in a part of the screen and copies it."
     },
+    "Copy Text from Screen reads the text or the QR code in the part of the screen you drag over." : {
+
+    },
+    "Copy the text or QR code in part of the screen." : {
+      "comment" : "One line on a permission card in the welcome."
+    },
     "Copy the version, build and commit for a bug report" : {
 
     },
@@ -1421,6 +1439,9 @@
     },
     "Couldn't turn Wi-Fi on" : {
 
+    },
+    "Couldn’t open the notes: %@" : {
+      "comment" : "The placeholder is the reason the system gave."
     },
     "Couldn’t save the note: %@" : {
       "comment" : "The placeholder is the reason the system gave."
@@ -1530,6 +1551,9 @@
         }
       }
     },
+    "Desktop, Documents and Downloads, for fast file search. macOS asks per folder." : {
+      "comment" : "One line on a permission card in the welcome."
+    },
     "Detail" : {
       "comment" : "A label before a line that describes a copied thing, such as its length."
     },
@@ -1572,6 +1596,9 @@
         }
       }
     },
+    "Docs" : {
+      "comment" : "A result row in a demo of the welcome tour: a quicklink."
+    },
     "Done" : {
       "comment" : "A button that ends writing a note.\nSaid after a command finished and printed nothing.\nThe button that closes the welcome window."
     },
@@ -1605,10 +1632,10 @@
     "Dynamic Glass" : {
       "comment" : "A kind of glass material for the launcher, as a choice in a picker."
     },
-    "Each extension makes its own requests, and the images it shows are loaded from wherever it points." : {
+    "Each card says what its permission switches on. The launcher and your extensions work without any of them." : {
 
     },
-    "Each one switches on the feature named under it. The launcher and your extensions work without any of them." : {
+    "Each extension makes its own requests, and the images it shows are loaded from wherever it points." : {
 
     },
     "Earlier commands, programs and paths appear under the command, and Tab finishes the selected one. Your shell history is read, not kept." : {
@@ -1732,7 +1759,7 @@
 
     },
     "Extensions" : {
-      "comment" : "The heading over the settings for extensions."
+      "comment" : "A heading in the settings sidebar, over the installed extensions.\nThe heading over the settings for extensions."
     },
     "Extensions Folder" : {
 
@@ -1764,6 +1791,9 @@
     "Fast file search" : {
 
     },
+    "Fast file search finds the files in Desktop, Documents and Downloads by name. macOS asks for each folder." : {
+
+    },
     "Favorite" : {
       "comment" : "A verb on a button: add the selected result to the favorites."
     },
@@ -1785,6 +1815,9 @@
     "Files" : {
       "comment" : "Files on this Mac, as a source of search results.\nThe kind of a result, shown beside its title."
     },
+    "Files open in your editor and links in your browser." : {
+      "comment" : "A tile of the welcome tour."
+    },
     "Files you open will show up here." : {
 
     },
@@ -1798,9 +1831,6 @@
       "comment" : "A button that puts the cursor in the settings search field."
     },
     "Find a command in the menus of the app in front and choose it." : {
-
-    },
-    "Find a menu bar item by name and open its menu. This is the one feature that needs Accessibility." : {
 
     },
     "Find a person in Contacts" : {
@@ -1829,6 +1859,9 @@
     },
     "Finds the shortcuts you made in the Shortcuts app by name and runs the one you pick. Floe asks the Shortcuts command line tool for the names each time the launcher opens. The list stays on this Mac and is not saved. Type “shortcuts” and a space to see them all." : {
       "comment" : "“shortcuts” is a word the user types. It is a command and stays in English."
+    },
+    "Floating Note" : {
+      "comment" : "The command, and the window, that keep a note on top of other apps."
     },
     "Floe" : {
       "comment" : "Floe is the name of this app."
@@ -1915,6 +1948,9 @@
     "Floe needs permission to control %@." : {
       "comment" : "The placeholder is the name of an app, or of two."
     },
+    "Floe needs permission to control Notes. Your text stays here until it can save." : {
+      "comment" : "Notes is Apple's notes app."
+    },
     "Floe needs permission to list %@'s tabs" : {
       "comment" : "The placeholder is the name of a browser."
     },
@@ -1953,6 +1989,9 @@
     },
     "Focus for %@" : {
       "comment" : "The title of the row that turns a Focus on for a while. The placeholder is how long, such as 1 hr."
+    },
+    "Folders" : {
+      "comment" : "The title of a permission: access to the Desktop, Documents and Downloads folders."
     },
     "Follow Thaw's Appearance" : {
 
@@ -2001,6 +2040,7 @@
     },
     "From Raycast · %lld commands" : {
       "comment" : "The placeholder is how many commands an extension has.",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "variations" : {
@@ -2091,7 +2131,7 @@
     "Hidden from Search" : {
 
     },
-    "Hidden from search. Settings › General brings it back." : {
+    "Hidden from search. Settings › Commands brings it back." : {
 
     },
     "Hide" : {
@@ -2111,9 +2151,6 @@
     },
     "Hotkey" : {
       "comment" : "A column heading over keyboard shortcuts."
-    },
-    "How Floe works" : {
-
     },
     "How long a closed launcher keeps the command you had open." : {
 
@@ -2149,9 +2186,6 @@
       "comment" : "A button that installs an extension."
     },
     "Install Thaw and its actions appear in the search." : {
-
-    },
-    "Install extensions from the Raycast store" : {
 
     },
     "Install in Terminal" : {
@@ -2196,6 +2230,9 @@
     "Keep %@ up to date?" : {
       "comment" : "The placeholder is the name of this app."
     },
+    "Keep a note on top of other apps, stored in the notes app you chose." : {
+
+    },
     "Keep receipts" : {
 
     },
@@ -2213,11 +2250,17 @@
         }
       }
     },
+    "Kept in Notes, in the folder %@" : {
+      "comment" : "Where the notes on screen are stored. Notes is Apple's notes app; the placeholder is a folder's name."
+    },
     "Kept in the Keychain" : {
 
     },
     "Kept in the folder %@" : {
       "comment" : "Where the notes on screen are stored. The placeholder is a folder's name."
+    },
+    "Kept on this Mac until you send it to %@" : {
+      "comment" : "Where the scratch note is stored. The placeholder is the name of an app."
     },
     "Keyboard (System Settings)" : {
       "comment" : "The name of a pane of System Settings.",
@@ -2236,9 +2279,6 @@
     },
     "Keywords" : {
       "comment" : "A section title. Keywords are the words the search answers to, such as remind or timer."
-    },
-    "Keywords and fallbacks for web search" : {
-
     },
     "Keywords and fallbacks for web search." : {
 
@@ -2398,7 +2438,7 @@
     "Make a QR code to copy or save" : {
 
     },
-    "Make a Shortcut that sets your Focus, then name it in Settings › General" : {
+    "Make a Shortcut that sets your Focus, then name it in Settings › Commands" : {
       "comment" : "Shortcut is what Apple's Shortcuts app makes. Focus is the macOS feature that silences notifications."
     },
     "Make a new UUID" : {
@@ -2438,7 +2478,7 @@
       "comment" : "The kind of a result, shown beside its title."
     },
     "Menu Bar" : {
-      "comment" : "The heading over every menu bar item.\nThe kind of a result, shown beside its title."
+      "comment" : "A command that shows in the menu bar.\nThe heading over every menu bar item.\nThe kind of a result, shown beside its title."
     },
     "Menu Bar Commands" : {
 
@@ -2451,6 +2491,9 @@
     },
     "Menu Items" : {
 
+    },
+    "Menus and windows" : {
+      "comment" : "A tile of the welcome tour."
     },
     "Message" : {
       "comment" : "A verb on a button: write the person a message.\nThe kind of a result, shown beside its title. Here a row that opens a message draft."
@@ -2530,6 +2573,9 @@
     "Name the language: translate to german good morning" : {
       "comment" : "The words after the colon are typed as they are and stay in English."
     },
+    "Needs setup" : {
+      "comment" : "A tag on an extension with a setting that must be filled in before it runs."
+    },
     "Neither Spotify nor Music is open" : {
       "comment" : "Spotify and Music are the names of two apps."
     },
@@ -2553,6 +2599,9 @@
     },
     "New Note" : {
 
+    },
+    "New Note (⌘N)" : {
+      "comment" : "A tooltip on the button that makes a new note."
     },
     "New Note “%@”" : {
       "comment" : "The placeholder is the text of the note."
@@ -2656,6 +2705,9 @@
     "No note has that name" : {
 
     },
+    "No notes here yet" : {
+
+    },
     "No notes in this folder yet" : {
 
     },
@@ -2753,7 +2805,13 @@
       "comment" : "The heading of a note in the release notes."
     },
     "Notes" : {
-      "comment" : "The kind of a result, shown beside its title. Here a row that writes a note.\nThe kind of app that keeps notes, as the label of the picker that chooses one."
+      "comment" : "A tile of the welcome tour.\nThe kind of a result, shown beside its title. Here a row that writes a note.\nThe kind of app that keeps notes, as the label of the picker that chooses one."
+    },
+    "Notes didn’t answer" : {
+      "comment" : "Notes is Apple's notes app."
+    },
+    "Notes made no note" : {
+      "comment" : "Notes is Apple's notes app."
     },
     "Nothing copied yet" : {
 
@@ -2778,6 +2836,9 @@
     },
     "Nothing to translate" : {
 
+    },
+    "Notifications" : {
+      "comment" : "The macOS permission named Notifications."
     },
     "Notifications (System Settings)" : {
       "comment" : "The name of a pane of System Settings.",
@@ -2922,7 +2983,7 @@
     "Open source" : {
 
     },
-    "Open source under the AGPL, so you can read how it works" : {
+    "Open source under the AGPL" : {
 
     },
     "Open the launcher from an app to search its menus." : {
@@ -3005,9 +3066,6 @@
     "Permissions" : {
       "comment" : "What the app is allowed to do on this Mac."
     },
-    "Permissions and what Floe contacts" : {
-
-    },
     "Permissions and what Floe contacts." : {
 
     },
@@ -3048,6 +3106,9 @@
 
     },
     "Preferred Apps" : {
+
+    },
+    "Preferred apps, and aliases and hotkeys for apps." : {
 
     },
     "Prefix" : {
@@ -3128,7 +3189,7 @@
     "Questions go to the %@ tool, which sends them to the service it is signed in to, on your account there." : {
       "comment" : "The placeholder is the name of a command line tool."
     },
-    "Questions go to the address set in General, once it is filled in." : {
+    "Questions go to the address set on the AI page, once it is filled in." : {
 
     },
     "Questions go to the server on this Mac at %@. Nothing leaves the machine." : {
@@ -3144,7 +3205,7 @@
       "comment" : "Quick Look is the macOS preview. The placeholder is the name of a file."
     },
     "Quicklink" : {
-      "comment" : "The heading of the form that edits one quicklink.\nThe kind of a result, shown beside its title. A quicklink is a saved link or search."
+      "comment" : "A result row in a demo of the welcome tour.\nThe heading of the form that edits one quicklink.\nThe kind of a result, shown beside its title. A quicklink is a saved link or search."
     },
     "Quicklinks" : {
       "comment" : "The name of a settings page."
@@ -3178,9 +3239,6 @@
     },
     "Rates of %@" : {
       "comment" : "A label under a converted amount of money. The placeholder is a date as the bank writes it, such as 2026-10-07."
-    },
-    "Raycast" : {
-
     },
     "Raycast Extension Store" : {
 
@@ -3490,6 +3548,12 @@
     "Saved to Notes" : {
       "comment" : "Notes is Apple's notes app."
     },
+    "Scratch Note" : {
+      "comment" : "The name of the one note the floating note keeps when the notes app cannot be read back."
+    },
+    "Screen Recording" : {
+      "comment" : "The macOS permission named Screen Recording."
+    },
     "Screen Saver (System Settings)" : {
       "comment" : "The name of a pane of System Settings.",
       "extractionState" : "extracted_with_value",
@@ -3561,6 +3625,9 @@
     "Search Menu Items" : {
       "comment" : "The command that lists the commands in the menus of the app in front."
     },
+    "Search Raycast extensions" : {
+
+    },
     "Search Sources" : {
 
     },
@@ -3571,9 +3638,6 @@
 
     },
     "Search clipboard history…" : {
-
-    },
-    "Search extensions" : {
 
     },
     "Search field shape" : {
@@ -3588,14 +3652,26 @@
     "Search menu items…" : {
 
     },
+    "Search notes" : {
+      "comment" : "The label of the field that filters the list of notes."
+    },
     "Search notes, or name a new one…" : {
 
     },
-    "Search the menu bar" : {
-
+    "Search settings" : {
+      "comment" : "The placeholder of the search field in the settings sidebar."
+    },
+    "Search the menu bar and app menus, and switch windows." : {
+      "comment" : "One line on a permission card in the welcome."
+    },
+    "Search the menu bar and the menus of the app in front, and switch windows. These need Accessibility." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Search the menus of %@…" : {
       "comment" : "The placeholder is the name of an app."
+    },
+    "Search the menus of the app in front, and switch windows." : {
+
     },
     "Search what you copied" : {
 
@@ -3629,6 +3705,9 @@
     },
     "Select an extension to see its details." : {
 
+    },
+    "Send to %@" : {
+      "comment" : "A button that hands the note to the notes app and clears it. The placeholder is the name of an app."
     },
     "Separate light and dark tints" : {
 
@@ -3695,6 +3774,9 @@
     "Shell Commands" : {
 
     },
+    "Shell commands" : {
+      "comment" : "A tile of the welcome tour."
+    },
     "Shell history" : {
 
     },
@@ -3746,6 +3828,9 @@
     "Show in Finder" : {
 
     },
+    "Show larger" : {
+
+    },
     "Show the Floe launcher." : {
 
     },
@@ -3792,7 +3877,7 @@
       "comment" : "The kind of a result, shown beside its title. A snippet is a saved piece of text."
     },
     "Snippets" : {
-      "comment" : "The name of a settings page."
+      "comment" : "A tile of the welcome tour.\nThe name of a settings page."
     },
     "Software Update (System Settings)" : {
       "comment" : "The name of a pane of System Settings.",
@@ -3872,9 +3957,6 @@
         }
       }
     },
-    "Startup, preferred apps, AI and sync" : {
-
-    },
     "Status" : {
 
     },
@@ -3919,11 +4001,17 @@
     "Suggestions" : {
       "comment" : "A section title above results Floe suggests."
     },
+    "Sums, units and dates as you type them." : {
+      "comment" : "A tile of the welcome tour."
+    },
     "Support Floe" : {
 
     },
     "Swap Shown and Hidden Items" : {
 
+    },
+    "Switch Note (⌘P)" : {
+      "comment" : "A tooltip on the note's name, which opens the list of notes."
     },
     "Switch to Tab" : {
 
@@ -3942,6 +4030,9 @@
     },
     "Symbol" : {
       "comment" : "The icon of a quicklink."
+    },
+    "Sync" : {
+      "comment" : "The name of a settings page."
     },
     "Sync is off." : {
 
@@ -3982,8 +4073,8 @@
     "Text" : {
       "comment" : "A kind of copied thing."
     },
-    "Text you paste or type by keyword" : {
-
+    "Text that expands as you type, and quicklinks you open by name." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Text you paste or type by keyword." : {
 
@@ -4026,6 +4117,9 @@
     },
     "Thaw isn't installed" : {
 
+    },
+    "Thaw's actions are in the search, and Floe can follow its look." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Thaw's actions are in the search: type “thaw” to see them." : {
       "comment" : "The word in quotation marks is typed as it is and stays in English."
@@ -4074,10 +4168,10 @@
     "The API returned status %lld." : {
       "comment" : "The placeholder is an HTTP status number such as 500."
     },
-    "The API set up in General" : {
+    "The API set up on the AI page" : {
 
     },
-    "The Extension Store lists and downloads extensions from GitHub, and their packages from the npm registry." : {
+    "The Extension Store lists and downloads extensions from GitHub, with the screenshots of the one you open, and their packages from the npm registry." : {
 
     },
     "The Finder isn't frontmost, so there is no Finder selection to read." : {
@@ -4104,10 +4198,10 @@
     "The command failed with exit code %d." : {
       "comment" : "The placeholder is the number a command ended with."
     },
-    "The command line tool set in General is not installed, so no question is sent." : {
+    "The command line tool set on the AI page is not installed, so no question is sent." : {
 
     },
-    "The command line tool set up in General" : {
+    "The command line tool set up on the AI page" : {
 
     },
     "The command's input could not be prepared." : {
@@ -4197,7 +4291,7 @@
     "The search field is its own piece of glass, and the results are a second piece below it." : {
 
     },
-    "The source chosen in General" : {
+    "The source chosen on the AI page" : {
 
     },
     "The system command failed." : {
@@ -4276,9 +4370,6 @@
 
     },
     "Tint color" : {
-
-    },
-    "Tint, border and shadow for the launcher" : {
 
     },
     "Tint, border and shadow for the launcher panel." : {
@@ -4428,6 +4519,9 @@
     "Turn on Apple Intelligence in System Settings to use it here." : {
 
     },
+    "Type ? in the search to see every keyword." : {
+
+    },
     "Type Keyword" : {
       "comment" : "A button that puts the selected keyword into the search field, for the user to go on typing."
     },
@@ -4438,9 +4532,6 @@
 
     },
     "Type the prefix and a command. Return runs it out of sight and shows its first line of output; Command-Return opens it in your terminal." : {
-
-    },
-    "Type to find an app or a command, then press Return." : {
 
     },
     "Type “note” and then your text in the search to send it there." : {
@@ -4491,6 +4582,9 @@
     "Update" : {
       "comment" : "A button that updates an extension to its newest version."
     },
+    "Update available" : {
+      "comment" : "A tag on an installed extension that has a newer version."
+    },
     "Update channel" : {
 
     },
@@ -4536,8 +4630,8 @@
     "Version" : {
       "comment" : "A label before the version number of this app."
     },
-    "Version, updates and credits" : {
-
+    "View" : {
+      "comment" : "A command that opens its own view in the launcher."
     },
     "View on GitHub" : {
 
@@ -4599,7 +4693,13 @@
     "Welcome window" : {
 
     },
+    "What Floe does" : {
+
+    },
     "What It Has Reached" : {
+
+    },
+    "What answers Ask AI and extensions." : {
 
     },
     "What’s New" : {
@@ -4628,6 +4728,9 @@
     },
     "Window" : {
       "comment" : "The kind of a result, shown beside its title. Here an open window of an app.\nThe title of the Window menu in the menu bar."
+    },
+    "Works with Thaw" : {
+      "comment" : "A tile of the welcome tour."
     },
     "Write" : {
       "comment" : "A verb on a button: start changing the note on screen."
@@ -4662,8 +4765,32 @@
     "Your iCloud storage is full. Changes made on this Mac are not uploaded." : {
 
     },
+    "Your last 300 copies. Return pastes one." : {
+      "comment" : "A tile of the welcome tour."
+    },
+    "Your next events in the search, and `event` adds one." : {
+      "comment" : "One line on a permission card in the welcome. event is a command the user types and stays in English."
+    },
     "Your notes are kept in %@" : {
 
+    },
+    "Your own apps" : {
+      "comment" : "A tile of the welcome tour."
+    },
+    "`>` and a command runs it. ⌘Return opens your terminal." : {
+      "comment" : "A tile of the welcome tour."
+    },
+    "`ask` and a question, answered by a tool you are signed in to, Apple Intelligence or an API. A switch keeps it all on your Mac." : {
+      "comment" : "A tile of the welcome tour. ask is the keyword typed in the search."
+    },
+    "`contact` and a name finds a person." : {
+      "comment" : "One line on a permission card in the welcome. contact is a command the user types and stays in English."
+    },
+    "`note` writes to your notes app. Floating Note stays on top." : {
+      "comment" : "A tile of the welcome tour. note is the keyword typed in the search."
+    },
+    "`remind` and a sentence adds a reminder." : {
+      "comment" : "One line on a permission card in the welcome. remind is a command the user types and stays in English."
     },
     "a note" : {
       "comment" : "What a checkpoint holds when it has no files and no tabs."
@@ -4685,6 +4812,9 @@
     },
     "ai, api, model, gpt, openai, opencode, pi" : {
       "comment" : "Words that find the Model setting in the settings search, separated by commas."
+    },
+    "ai, ask ai, artificial intelligence, assistant, llm" : {
+      "comment" : "Words that find the AI page in the settings search, separated by commas."
     },
     "ai, ask, claude, codex, opencode, pi, openai, openrouter, z.ai, apple intelligence, ollama, lm studio, local, model, llm, assistant, provider" : {
       "comment" : "Words that find the Answer AI requests with setting in the settings search, separated by commas."
@@ -4914,6 +5044,9 @@
     "hotkey, shortcut, keyboard, alias, emoji, clipboard, file search, system commands, lock, sleep, play, pause" : {
       "comment" : "Words that find the hotkeys and aliases of Floe's own commands in the settings search, separated by commas."
     },
+    "hotkey, shortcut, keyboard, alias, floating note, sticky note, scratch pad, notes, window on top" : {
+      "comment" : "Words that find the Floating Note setting in the settings search, separated by commas."
+    },
     "hotkey, shortcut, keyboard, alias, menu bar, status items, icons" : {
       "comment" : "Words that find the Search Menu Bar Items setting in the settings search, separated by commas."
     },
@@ -4930,6 +5063,12 @@
 
     },
     "iCloud copy" : {
+
+    },
+    "iCloud sync" : {
+      "comment" : "A tile of the welcome tour."
+    },
+    "iCloud sync and settings files." : {
 
     },
     "keyboard shortcuts, input sources, dictation, text replacements" : {
@@ -4998,7 +5137,7 @@
     "opencode stopped before finishing." : {
       "comment" : "The word opencode is the name of a command and stays as written."
     },
-    "opencode tried to use a tool, which Floe does not allow, so it was stopped. Choose another tool under Settings › General › AI." : {
+    "opencode tried to use a tool, which Floe does not allow, so it was stopped. Choose another tool under Settings › AI." : {
       "comment" : "The word opencode is the name of a command and stays as written."
     },
     "party, celebrate, celebration, tada, congrats" : {
@@ -5016,7 +5155,7 @@
     "pi stopped before finishing." : {
       "comment" : "The word pi is the name of a command and stays as written."
     },
-    "pi tried to use a tool, which Floe does not allow, so it was stopped. Choose another tool under Settings › General › AI." : {
+    "pi tried to use a tool, which Floe does not allow, so it was stopped. Choose another tool under Settings › AI." : {
       "comment" : "The word pi is the name of a command and stays as written."
     },
     "play, pause, resume, stop music, music, spotify" : {
@@ -5145,6 +5284,9 @@
     "sync, icloud, cloud, macs, devices, backup, share, remove" : {
       "comment" : "Words that find the Sync settings with iCloud setting in the settings search, separated by commas."
     },
+    "sync, icloud, export, import, backup" : {
+      "comment" : "Words that find the Sync page in the settings search, separated by commas."
+    },
     "sync, icloud, extensions, extension preferences, extension settings, macs" : {
       "comment" : "Words that find the Include extension settings setting in the settings search, separated by commas."
     },
@@ -5253,7 +5395,7 @@
     "wifi, wireless, internet" : {
       "comment" : "Words that find the Wi-Fi pane of System Settings, separated by commas."
     },
-    "“Only use AI that runs on this Mac” is on, and the AI source you chose sends questions elsewhere, so nothing was asked. Turn the switch off under Settings › Privacy, or choose Apple Intelligence or a server on this Mac under Settings › General › AI." : {
+    "“Only use AI that runs on this Mac” is on, and the AI source you chose sends questions elsewhere, so nothing was asked. Turn the switch off under Settings › Privacy, or choose Apple Intelligence or a server on this Mac under Settings › AI." : {
 
     },
     "“contact” and a name finds people in your Contacts. macOS asks first, and only once you type that word and a name. Nothing is saved." : {

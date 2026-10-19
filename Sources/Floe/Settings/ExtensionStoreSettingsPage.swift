@@ -15,10 +15,16 @@ struct ExtensionStoreSettingsPage: View {
     /// changes, not on every pass of the view, where a row's own state would ask for it again.
     @State private var matched: [StoreListing] = []
     @State private var selection: String?
+    /// The field and the grid line up; a row's text, inside its highlight, then lines up with the page's title.
+    private static let inset = SettingsPageHeading.leadingMargin - 8
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 12, alignment: .top)]
 
     var body: some View {
         VStack(spacing: 0) {
+            // Over the list and the details rather than in either, which scroll on their own.
+            SettingsPageHeader()
+                .padding(.horizontal, SettingsPageHeading.leadingMargin)
+                .padding(.top, SettingsPageHeading.topMargin)
             content
             Divider()
             Text("Extensions come from Raycast's open source repository. Some need Raycast features Floe doesn't have yet.")
@@ -87,9 +93,10 @@ struct ExtensionStoreSettingsPage: View {
             let filtered = matched
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
-                    TextField("Search extensions", text: $query)
-                        .textFieldStyle(.roundedBorder)
-                        .padding(10)
+                    // Named for the store, so it is not taken for the settings search in the sidebar.
+                    SettingsFilterField(prompt: "Search Raycast extensions", text: $query)
+                        .padding(.horizontal, Self.inset)
+                        .padding(.vertical, 10)
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 12) {
                             ForEach(filtered, id: \.name) { listing in
@@ -109,7 +116,7 @@ struct ExtensionStoreSettingsPage: View {
                                     }
                             }
                         }
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, Self.inset)
                     }
                     .overlay {
                         if filtered.isEmpty, !query.isEmpty {
@@ -198,94 +205,8 @@ private struct StoreActionButton: View {
     }
 }
 
-private struct StoreDetail: View {
-    @ObservedObject var store: ExtensionStore
-    let name: String
-    @State private var details: StoreDetails?
-    @State private var updateAvailable = false
-
-    private var githubURL: URL? {
-        URL(string: "https://github.com/raycast/extensions/tree/main/extensions/\(name)")
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    StoreIcon(store: store, url: details?.iconURL, size: 48)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(details?.title ?? name)
-                            .font(.title3.weight(.semibold))
-                        if let author = details?.author, !author.isEmpty {
-                            Text(author)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                if let description = details?.description, !description.isEmpty {
-                    Text(description)
-                }
-                HStack(spacing: 8) {
-                    if store.busy.contains(name) {
-                        ProgressView().controlSize(.small)
-                    } else if !store.isInstalled(name) {
-                        Button("Install") {
-                            Task { await store.install(name) }
-                        }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        if updateAvailable {
-                            Button("Update") {
-                                Task { await store.update(name) }
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        Button("Remove") {
-                            store.remove(name)
-                        }
-                    }
-                    if let githubURL {
-                        Link("View on GitHub", destination: githubURL)
-                    }
-                }
-                if let error = store.error, store.busy.contains(name) == false {
-                    Text(error)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-                if let details, !details.commands.isEmpty {
-                    Text("Commands")
-                        .font(.headline)
-                    ForEach(details.commands) { command in
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(command.title)
-                            if let description = command.description, !description.isEmpty {
-                                Text(description)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 2)
-                        Divider()
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-        }
-        .task(id: name) {
-            details = await store.details(for: name)
-            if store.isInstalled(name) {
-                updateAvailable = await store.hasUpdate(name)
-            } else {
-                updateAvailable = false
-            }
-        }
-    }
-}
-
-private struct StoreIcon: View {
+/// An extension's icon, or a puzzle piece until it is here.
+struct StoreIcon: View {
     let store: ExtensionStore
     let url: URL?
     let size: CGFloat

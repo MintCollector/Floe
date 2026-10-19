@@ -29,18 +29,17 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             SettingsSidebarPaneList(catalog: catalog, settings: settings, selection: selection)
-                .navigationSplitViewColumnWidth(min: SettingsSidebarPaneList.listWidth, ideal: SettingsSidebarPaneList.listWidth, max: 250)
+                // A fixed width: the pages' names fit it, and a wider sidebar only narrows the page.
+                .navigationSplitViewColumnWidth(SettingsSidebarPaneList.listWidth)
         } detail: {
             detail
-                // The system toolbar is the pane header: it names the pane and
-                // stays put while the form scrolls under it.
-                // Named here from the selection, not by each pane: a pane's own title only arrived once the pane was built.
-                .navigationTitle(title)
-                .navigationSubtitle(subtitle)
+                // Each page heads itself with this (see SettingsPageHeader). Named here from the
+                // selection, not by each pane: a pane's own title only arrived once the pane was built.
+                .environment(\.settingsPageHeading, SettingsPageHeading(title: title))
                 // Fill the detail column so the Form's scrollbar sits on the
                 // window's trailing edge.
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                // Content fades under the glass toolbar instead of stopping at a hard band.
+                // Content fades under the titlebar instead of stopping at a hard band.
                 .scrollEdgeEffectStyle(.soft, for: .top)
         }
         .settingsSearchField(search)
@@ -61,11 +60,19 @@ struct SettingsView: View {
     private var pane: some View {
         switch selection.page {
         case .general:
-            GeneralSettingsView(catalog: catalog, settings: settings, updates: stores.updates, sync: stores.sync, showWelcome: stores.showWelcome)
+            GeneralSettingsView(settings: settings, updates: stores.updates, showWelcome: stores.showWelcome)
         case .commands:
             CommandsSettingsView(catalog: catalog, settings: settings)
         case .applications:
             ApplicationSettingsView(catalog: catalog, settings: settings)
+        case .ai:
+            Form {
+                SettingsPageHeader()
+                AISettingsSection(settings: settings)
+            }
+            .formStyle(.grouped)
+        case .sync:
+            SyncSettingsView(catalog: catalog, settings: settings, sync: stores.sync)
         case .quicklinks:
             QuicklinksSettingsPage(store: stores.quicklinks)
         case .snippets:
@@ -77,7 +84,7 @@ struct SettingsView: View {
         case .privacy:
             PrivacySettingsPane(settings: settings, stores: stores)
         case .about:
-            AboutSettingsPane(updatesManager: stores.updates)
+            AboutSettingsPane(updatesManager: stores.updates, settings: settings)
         case let .extensionPage(name):
             ExtensionSettingsView(
                 catalog: catalog,
@@ -91,13 +98,15 @@ struct SettingsView: View {
         }
     }
 
-    /// The pane's name in the toolbar, the one its sidebar row has. Search results name themselves.
+    /// The pane's name over its content, the one its sidebar row has.
     private var title: String {
         guard !search.isSearching else { return String(localized: "Search", bundle: .floe) }
         return switch selection.page {
         case .general: SearchPaneLabel.general.title
         case .commands: SearchPaneLabel.commands.title
         case .applications: SearchPaneLabel.applications.title
+        case .ai: SearchPaneLabel.ai.title
+        case .sync: SearchPaneLabel.sync.title
         case .quicklinks: SearchPaneLabel.quicklinks.title
         case .snippets: SearchPaneLabel.snippets.title
         case .extensionStore: SearchPaneLabel.extensionStore.title
@@ -107,98 +116,16 @@ struct SettingsView: View {
         case let .extensionPage(name): catalog.allCommands.first { $0.extensionName == name }?.extensionTitle ?? name
         }
     }
-
-    /// What the pane holds, under its name in the toolbar; for an extension, where it comes from.
-    private var subtitle: String {
-        guard !search.isSearching else { return "" }
-        switch selection.page {
-        case .general: return String(localized: "Startup, preferred apps, AI and sync", bundle: .floe)
-        case .commands: return String(localized: "Built-in, shell, script and menu bar commands", bundle: .floe)
-        case .applications: return String(localized: "Aliases and hotkeys for apps", bundle: .floe)
-        case .quicklinks: return String(localized: "Keywords and fallbacks for web search", bundle: .floe)
-        case .snippets: return String(localized: "Text you paste or type by keyword", bundle: .floe)
-        case .extensionStore: return String(localized: "Install extensions from the Raycast store", bundle: .floe)
-        case .appearance: return String(localized: "Tint, border and shadow for the launcher", bundle: .floe)
-        case .privacy: return String(localized: "Permissions and what Floe contacts", bundle: .floe)
-        case .about: return String(localized: "Version, updates and credits", bundle: .floe)
-        case let .extensionPage(name):
-            guard let command = catalog.allCommands.first(where: { $0.extensionName == name }) else { return "" }
-            let count = catalog.allCommands.filter { $0.extensionName == name }.count
-            // The catalog holds the singular of both as a plural variation.
-            return command.source == .raycast
-                ? String(localized: "From Raycast · \(count) commands", bundle: .floe, comment: "The placeholder is how many commands an extension has.")
-                : String(localized: "\(count) commands", bundle: .floe, comment: "The placeholder is how many commands an extension has.")
-        }
-    }
 }
 
 struct GeneralSettingsView: View {
-    let catalog: CatalogStore
     @ObservedObject var settings: AppSettings
     let updates: UpdatesManager
-    let sync: SettingsSyncStatus
     let showWelcome: () -> Void
-
-    private func exportSettings() {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "Floe Settings.json"
-        panel.allowedContentTypes = [.json]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let archive = try SettingsTransfer.Archive(
-                settings: settings.exportedJSON(),
-                preferences: PreferenceStore.allStoredValues(),
-                secretKeys: PreferenceStore.secretKeys(for: catalog.allCommands)
-            )
-            try SettingsTransfer.encode(archive).write(to: url, options: .atomic)
-        } catch {
-            Self.show(error)
-        }
-    }
-
-    private func importSettings() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
-        panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let archive = try SettingsTransfer.decode(Data(contentsOf: url))
-            let detail = String(localized: "Aliases, hotkeys, favorites and appearance are replaced by the file's. Passwords aren't included in exports.", bundle: .floe)
-            guard Confirm.destructive(String(localized: "Replace your settings?", bundle: .floe), detail: detail, button: String(localized: "Replace", bundle: .floe, comment: "The button that replaces the settings with the ones in a file.")) else { return }
-            try settings.importJSON(archive.settings)
-            for (name, values) in archive.preferences {
-                PreferenceStore.merge(values, extensionName: name)
-            }
-            let summary = SettingsTransfer.summary(of: archive) { Keychain.read(account: "\($0)/\($1)") != nil }
-            let done = NSAlert()
-            done.messageText = String(localized: "Settings imported", bundle: .floe)
-            var lines = [
-                String(
-                    localized: "\(summary.aliases) aliases, \(summary.hotkeys) hotkeys, \(summary.favorites) favorites, preferences for \(summary.extensions) extensions.",
-                    bundle: .floe,
-                    comment: "What a settings file brought in. Each placeholder is a count."
-                ),
-            ]
-            if !summary.missingSecrets.isEmpty {
-                let names = summary.missingSecrets.joined(separator: "\n")
-                lines.append(String(localized: "Enter these again:\n\(names)", bundle: .floe, comment: "The placeholder is a list of password fields, one on each line."))
-            }
-            done.informativeText = lines.joined(separator: "\n\n")
-            done.runModal()
-        } catch {
-            Self.show(error)
-        }
-    }
-
-    private static func show(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = String(localized: "Couldn't transfer settings", bundle: .floe)
-        alert.informativeText = error.localizedDescription
-        alert.runModal()
-    }
 
     var body: some View {
         Form {
+            SettingsPageHeader()
             ThawSection("Floe") {
                 HotkeyRecorder(
                     keyCombination: $settings.toggleHotkey,
@@ -220,22 +147,7 @@ struct GeneralSettingsView: View {
                     Text("How long a closed launcher keeps the command you had open.")
                 }
             }
-            PreferredAppsSettingsSection(settings: settings)
-            AISettingsSection(settings: settings)
-            SyncSettingsSection(settings: settings, sync: sync)
-            ThawSection("Your Settings") {
-                LabeledContent {
-                    HStack {
-                        Button("Export…") { exportSettings() }
-                        Button("Import…") { importSettings() }
-                    }
-                } label: {
-                    Text("Settings file")
-                    Text("Aliases, hotkeys, favorites, appearance and extension preferences. Passwords stay out.")
-                }
-            }
             WelcomeSettingsSection(showWelcome: showWelcome)
-            DiagnosticsSettingsSection(settings: settings)
         }
         .formStyle(.grouped)
     }

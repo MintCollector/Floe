@@ -36,6 +36,7 @@ struct PrivacySettingsPane: View {
 
     var body: some View {
         Form {
+            SettingsPageHeader()
             // Footer-only section: the one placement where a pill renders without the form's card around it.
             ThawSection {
                 EmptyView()
@@ -142,7 +143,7 @@ struct PrivacySettingsPane: View {
                 if let host = PrivacyNetwork.updateHost {
                     row("Updates", String(localized: "Checking asks \(host) whether a newer version exists. Floe asked before it started. The switch is in General.", bundle: .floe, comment: "The placeholder is the address of a server."))
                 }
-                row("Extension Store", String(localized: "The Extension Store lists and downloads extensions from GitHub, and their packages from the npm registry.", bundle: .floe))
+                row("Extension Store", PrivacyNetwork.extensionStoreLine)
                 row("Extension sign-in", String(localized: "An extension that signs in through the browser uses Raycast’s sign-in service for now: the browser returns through raycast.com, and some extensions get their token from Raycast’s servers. This is temporary: Floe’s own sign-in service is planned to replace it.", bundle: .floe, comment: "Raycast is another app's name."))
                 row("AI", PrivacyNetwork.aiLine(source: settings.aiSource, baseURL: settings.aiBaseURL, tool: AskAI.configuredTool(settings), onThisMacOnly: settings.aiOnThisMacOnly))
                 row("Follow-up questions", String(localized: "A follow-up in Ask AI sends that conversation’s earlier questions and answers again. Floe saves none of it.", bundle: .floe, comment: "Ask AI is the name of the feature that answers a question in the launcher."))
@@ -197,6 +198,11 @@ extension PrivacyNetwork {
 
 /// What the Privacy pane says about the network, kept out of the view so it can be checked.
 enum PrivacyNetwork {
+    /// What the store asks of GitHub and npm. Screenshots are asked for only when an extension's details are opened.
+    static var extensionStoreLine: String {
+        String(localized: "The Extension Store lists and downloads extensions from GitHub, with the screenshots of the one you open, and their packages from the npm registry.", bundle: .floe)
+    }
+
     /// Where update checks go; nil in a build that has no updates, which then says nothing about them.
     static var updateHost: String? {
         let configuration = UpdateConfiguration(info: Bundle.main.infoDictionary)
@@ -204,7 +210,7 @@ enum PrivacyNetwork {
         return URL(string: configuration.feedURL)?.host
     }
 
-    /// Where a question goes, for the source chosen in General; `tool` is the command line tool that would answer, if any.
+    /// Where a question goes, for the source chosen on the AI page; `tool` is the command line tool that would answer, if any.
     /// With `onThisMacOnly`, a source that is not on this Mac is said to be refused.
     static func aiLine(source: AISource, baseURL: String, tool: String? = nil, onThisMacOnly: Bool = false) -> String {
         switch source {
@@ -214,13 +220,13 @@ enum PrivacyNetwork {
             }
             return String(localized: "The \(tool) tool is chosen, which sends questions to its service. While the switch below is on, Floe does not ask it.", bundle: .floe, comment: "The placeholder is the name of a command line tool.")
         case .tools:
-            guard let tool else { return String(localized: "The command line tool set in General is not installed, so no question is sent.", bundle: .floe) }
+            guard let tool else { return String(localized: "The command line tool set on the AI page is not installed, so no question is sent.", bundle: .floe) }
             return String(localized: "Questions go to the \(tool) tool, which sends them to the service it is signed in to, on your account there.", bundle: .floe, comment: "The placeholder is the name of a command line tool.")
         case .appleIntelligence:
             return String(localized: "Questions are answered by Apple Intelligence on this Mac. Nothing is sent anywhere.", bundle: .floe)
         case .api:
             let url = AIEndpoint.chatURL(baseURL: baseURL)
-            guard let host = url?.host else { return String(localized: "Questions go to the address set in General, once it is filled in.", bundle: .floe) }
+            guard let host = url?.host else { return String(localized: "Questions go to the address set on the AI page, once it is filled in.", bundle: .floe) }
             let isOnThisMac = AIEndpoint.isOnThisMac(url)
             if onThisMacOnly, !isOnThisMac {
                 return String(localized: "\(host) is chosen, which is not on this Mac. While the switch below is on, Floe refuses to ask it, so no question is sent.", bundle: .floe, comment: "The placeholder is the address of a server.")
