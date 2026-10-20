@@ -29,19 +29,20 @@ final nonisolated class FileIndexService: Sendable {
         var watch: @Sendable (String, UInt64?, @escaping @Sendable ([FileIndexChange], UInt64) -> Void) -> (@Sendable () -> Void) = FileIndexEvents.watch
         /// Where the index is kept between launches. Nil keeps it in memory only, and every launch walks the folder.
         var saved: URL?
-        /// The foreground copy may read the cache, but only the resident writes or removes it.
+        /// Off for a copy that reads the saved cache but must leave it alone, as a test's does.
         var writesCache = true
         /// What numbers the folder's events: a saved index is only picked up on the same one.
         var volume: @Sendable (String) -> String? = FileIndexEvents.volume(of:)
         /// The newest event there is, which is where a walk that starts now is safe to be picked up from.
         var currentEvent: @Sendable () -> UInt64 = { FSEventsGetCurrentEventId() }
-        /// How long after the last change the index is saved again.
-        var saveDelay: TimeInterval = 10
+        /// How long after a change the index is saved, with every change made meanwhile. The saved file is the whole
+        /// index, so it is written seldom: a launch replays the events since the save.
+        var saveDelay: TimeInterval = 30 * 60
         /// When a file was last opened, for the order of the matches. Nil for one not opened lately.
         var lastUsed: @Sendable (String) -> Date? = RecentFileUse.date(for:)
     }
 
-    static let shared = FileIndexService(environment: Environment(saved: savedFile, writesCache: !ProcessInfo.processInfo.arguments.contains("--panel")))
+    static let shared = FileIndexService(environment: Environment(saved: savedFile))
 
     /// A cache: macOS may clear it, and the next launch then walks the folder again.
     static let savedFile = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("Floe/FileNames.index")
@@ -68,12 +69,12 @@ final nonisolated class FileIndexService: Sendable {
     private struct Running {
         let index: FileIndex
         var root = ""
-        var stop: @Sendable () -> Void = {}
+        var stop: @Sendable () -> Void = { /* Nothing watches the disk until the index starts. */ }
         var isReady = false
         /// The last event the index holds the changes of.
         var event: UInt64 = 0
-        /// Counts the changes, so only the save after the last one is carried out.
-        var saves = 0
+        /// Changes are waiting for the save that is due.
+        var hasUnsavedChanges = false
     }
 
     private let environment: Environment
@@ -91,6 +92,12 @@ final nonisolated class FileIndexService: Sendable {
         running.withLock { $0?.stop() }
     }
 
+    /// Whether the index is switched on, built or not. Asked as a query is typed: unlike `state`, it measures nothing.
+    var isOn: Bool {
+        running.withLock { $0 != nil }
+    }
+
+    /// What Settings shows. Counting the bytes walks the whole index, so the search asks `isOn` instead.
     var state: State {
         running.withLock { running in
             guard let running else { return .off }
@@ -193,19 +200,33 @@ final nonisolated class FileIndexService: Sendable {
             }
             publish()
         }
-        let turn = running.withLock { running -> Int? in
+        let isFirst = running.withLock { running -> Bool? in
             guard var now = running, now.index === index else { return nil }
+            let wasSaved = !now.hasUnsavedChanges
             now.event = max(now.event, event)
-            now.saves += 1
+            now.hasUnsavedChanges = true
             running = now
-            return now.saves
+            return wasSaved
         }
-        guard let turn else { return }
+        guard let isFirst else { return }
         guard environment.saveDelay > 0 else { return save(index) }
+        guard isFirst else { return }
         work.asyncAfter(deadline: .now() + environment.saveDelay) { [weak self] in
-            guard let self, running.withLock({ $0?.saves }) == turn else { return }
-            save(index)
+            self?.save(index)
         }
+    }
+
+    /// Saves the changes still waiting, before Floe quits. A walk still under way is not waited out: the next launch
+    /// replays what the saved index lacks.
+    func flush() {
+        let done = DispatchSemaphore(value: 0)
+        work.async { [self] in
+            if let index = running.withLock({ $0?.hasUnsavedChanges == true ? $0?.index : nil }) {
+                save(index)
+            }
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 2)
     }
 
     /// The index first and its stamp after: a launch that finds a newer index than its stamp reads a few events twice.
@@ -215,6 +236,7 @@ final nonisolated class FileIndexService: Sendable {
               let volume = environment.volume(now.root)
         else { return }
         try? FileManager.default.createDirectory(at: saved.deletingLastPathComponent(), withIntermediateDirectories: true)
+        running.withLock { $0?.hasUnsavedChanges = false }
         guard index.save(to: saved), let stamp = try? JSONEncoder().encode(Stamp(event: now.event, volume: volume)) else { return }
         try? stamp.write(to: Self.stampFile(for: saved), options: .atomic)
     }

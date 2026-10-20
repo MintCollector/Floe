@@ -250,7 +250,7 @@ struct SearchModelTests {
         ("api key", "ai.aiKey"),
         ("icloud", "sync.syncsWithICloud"),
         ("export", "sync.transferSettings"),
-        ("detailed logging", "about.diagnosticLogging"),
+        ("detailed logging", "privacy.diagnosticLogging"),
     ])
     func aSettingIsTheFirstResultForItsOwnWords(query: String, id: String) {
         let model = SearchModel()
@@ -373,7 +373,7 @@ struct SettingsSearchNavigationTests {
         ("ai.aiSource", .ai),
         ("sync.syncsWithICloud", .sync),
         ("sync.transferSettings", .sync),
-        ("about.diagnosticLogging", .about),
+        ("privacy.diagnosticLogging", .privacy),
     ])
     func aSettingMovedOutOfGeneralOpensItsNewPage(id: String, page: SettingsPage) throws {
         let selection = SettingsSelection()
@@ -410,5 +410,23 @@ struct SettingsSearchNavigationTests {
         search.requestedAnchor = "zeta-tools/timer"
         #expect(SettingsSearchNavigation.consumeAnchor(search: search) == "zeta-tools/timer")
         #expect(SettingsSearchNavigation.consumeAnchor(search: search) == nil)
+    }
+
+    @Test func theArrowsWalkTheResultsInTheOrderShownAndStopAtTheEnds() throws {
+        let model = SearchModel()
+        model.searchText = "search"
+        let shown = model.orderedResults.map(\.id)
+        try #require(shown.count > 1)
+        #expect(model.highlighted == shown.first, "a new search starts on its first result, which Return opens")
+        model.moveHighlight(by: -1)
+        #expect(model.highlighted == shown.first)
+        model.moveHighlight(by: 1)
+        #expect(model.highlightedEntry?.id == shown[1])
+        for _ in shown {
+            model.moveHighlight(by: 1)
+        }
+        #expect(model.highlighted == shown.last)
+        model.searchText = ""
+        #expect(model.highlighted == nil)
     }
 }

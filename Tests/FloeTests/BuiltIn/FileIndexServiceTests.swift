@@ -135,6 +135,7 @@ struct FileIndexServiceTests {
         let fixture = try IndexFixture(files: ["invoice.pdf"])
         let service = FileIndexService(environment: fixture.environment)
         #expect(service.state == .off)
+        #expect(!service.isOn)
         #expect(service.files(matching: "invoice") == nil)
         service.set(on: false)
         #expect(fixture.stopped == 0)
@@ -145,6 +146,7 @@ struct FileIndexServiceTests {
         let service = FileIndexService(environment: fixture.environment)
         service.set(on: true)
         #expect(service.state != .off)
+        #expect(service.isOn, "on while it is still walking")
         await service.settled()
         guard case let .ready(names, bytes) = service.state else {
             Issue.record("the walk is done, so the index is ready")
@@ -266,6 +268,30 @@ struct FileIndexServiceTests {
         await third.settled()
         #expect(third.files(matching: "second")?.map(\.name) == ["second.txt"], "what the events brought in was saved too")
         #expect(fixture.sinces.last == 150)
+    }
+
+    @Test func changesWaitForTheDueSaveOrTheFlushAtQuit() async throws {
+        let fixture = try IndexFixture(files: ["docs/first.txt"])
+        var environment = fixture.savingEnvironment
+        environment.saveDelay = 3600
+        let service = FileIndexService(environment: environment)
+        service.set(on: true)
+        await service.settled()
+        let walked = try Data(contentsOf: fixture.saved)
+
+        try fixture.add("docs/second.txt")
+        fixture.send([.folder(fixture.path("docs"))], event: 150)
+        try fixture.add("docs/third.txt")
+        fixture.send([.folder(fixture.path("docs"))], event: 160)
+        await service.settled()
+        #expect(try Data(contentsOf: fixture.saved) == walked, "a change does not rewrite the whole index at once")
+
+        service.flush()
+        let reopened = FileIndexService(environment: fixture.savingEnvironment)
+        reopened.set(on: true)
+        await reopened.settled()
+        #expect(reopened.files(matching: "third")?.map(\.name) == ["third.txt"], "the flush saved every change")
+        #expect(fixture.sinces.last == 160)
     }
 
     @Test func historicalEventsDeliveredWhenWatchingStartsAreAppliedAfterLoading() async throws {
@@ -500,12 +526,10 @@ struct FileSearchIndexTests {
     }
 
     @Test func onlyATypedQueryIsAskedOfTheIndex() {
-        let ready = FileIndexService.State.ready(names: 1, bytes: 1)
-        #expect(FileSearch.asksIndex("inv", state: ready))
-        #expect(FileSearch.asksIndex("inv", state: .building), "asked, and Spotlight answers when the index says it is not built")
-        #expect(!FileSearch.asksIndex("inv", state: .off))
-        #expect(!FileSearch.asksIndex("", state: ready), "the recent files come from Spotlight")
-        #expect(!FileSearch.asksIndex("  ", state: ready))
+        #expect(FileSearch.asksIndex("inv", isOn: true), "asked, and Spotlight answers when the index says it is not built")
+        #expect(!FileSearch.asksIndex("inv", isOn: false))
+        #expect(!FileSearch.asksIndex("", isOn: true), "the recent files come from Spotlight")
+        #expect(!FileSearch.asksIndex("  ", isOn: true))
     }
 
     @Test func theFileSearchShowsWhatTheIndexFindsAtEachKey() async throws {

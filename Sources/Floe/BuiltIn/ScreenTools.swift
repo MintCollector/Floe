@@ -41,7 +41,7 @@ nonisolated enum ScreenTools {
             sampler.show { continuation.resume(returning: $0) }
         }
         // The sampler is kept until it has answered.
-        withExtendedLifetime(sampler) {}
+        withExtendedLifetime(sampler) { /* Only the lifetime matters. */ }
         return color
     }
 
@@ -106,7 +106,7 @@ nonisolated enum ScreenTools {
     @MainActor
     @discardableResult
     static func run(_ tool: Tool, say: @escaping @MainActor (String) -> Void) -> Task<Void, Never> {
-        PanelWork.perform {
+        Task {
             switch tool {
             case .pickColor:
                 guard let hex = await pickColor().flatMap(hex) else { return }

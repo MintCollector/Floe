@@ -352,6 +352,9 @@
         }
       }
     },
+    "%lld frames a second. Fewer are lighter on the graphics card; more are smoother." : {
+
+    },
     "%lld items" : {
       "comment" : "How many lines a list has.",
       "localizations" : {
@@ -480,6 +483,12 @@
     },
     "100%" : {
       "shouldTranslate" : false
+    },
+    "120 fps" : {
+
+    },
+    "15 fps" : {
+
     },
     "360°" : {
       "shouldTranslate" : false
@@ -616,9 +625,6 @@
     "Action" : {
       "comment" : "Stands in for an action's title when the extension gave none."
     },
-    "Actions" : {
-      "comment" : "The label beside the shortcut that opens the menu of things to do with the selected result."
-    },
     "Actions…" : {
 
     },
@@ -720,9 +726,6 @@
     },
     "Alias" : {
       "comment" : "A short name typed in the search to find a command."
-    },
-    "Aliases, hotkeys and settings, the same on all your Macs." : {
-      "comment" : "A tile of the welcome tour."
     },
     "Aliases, hotkeys, favorites and appearance are replaced by the file's. Passwords aren't included in exports." : {
 
@@ -920,7 +923,7 @@
 
     },
     "Back" : {
-      "comment" : "A button that returns to the search."
+      "comment" : "A button that leaves the error and goes back.\nA button that returns to the search."
     },
     "Background" : {
       "comment" : "A command that runs without a window of its own."
@@ -943,6 +946,9 @@
         }
       }
     },
+    "Beam frame rate" : {
+
+    },
     "Beta" : {
       "comment" : "The update channel that also offers test releases."
     },
@@ -950,6 +956,12 @@
 
     },
     "Bluetooth On" : {
+
+    },
+    "Body Text" : {
+
+    },
+    "Bold" : {
 
     },
     "Bookmark" : {
@@ -980,6 +992,9 @@
 
     },
     "Built-in, shell, script and menu bar commands, and where extensions come from." : {
+
+    },
+    "Bulleted List" : {
 
     },
     "Bun install failed" : {
@@ -1184,8 +1199,14 @@
     "Close this window and start using %@" : {
       "comment" : "The placeholder is the name of this app."
     },
+    "Code" : {
+
+    },
     "Color" : {
       "comment" : "The label of a color picker."
+    },
+    "Colorful" : {
+      "comment" : "A beam around the search field in every colour."
     },
     "Command" : {
       "comment" : "The heading a command of an extension is listed under.\nThe kind of a result, shown beside its title."
@@ -1704,17 +1725,11 @@
     "Enter these again:\n%@" : {
       "comment" : "The placeholder is a list of password fields, one on each line."
     },
-    "Esc to cancel" : {
-
-    },
     "Event" : {
       "comment" : "The kind of a result, shown beside its title. Here a calendar event."
     },
     "Event: %@" : {
       "comment" : "The title of the row that adds a calendar event. The placeholder is what the event is called, such as lunch with Ana."
-    },
-    "Every permission is optional" : {
-
     },
     "Expand keywords as you type" : {
 
@@ -1759,7 +1774,7 @@
 
     },
     "Extensions" : {
-      "comment" : "A heading in the settings sidebar, over the installed extensions.\nThe heading over the settings for extensions."
+      "comment" : "A heading in the settings sidebar, over the installed extensions.\nA tile of the welcome tour: Raycast extensions.\nThe heading over the settings for extensions."
     },
     "Extensions Folder" : {
 
@@ -1963,9 +1978,6 @@
     "Floe renders List, Grid, Detail and Form." : {
       "comment" : "List, Grid, Detail and Form are names from the extension API and stay as written."
     },
-    "Floe runs the extensions in its own folder and the ones you have installed in Raycast." : {
-
-    },
     "Floe sees only part of what an extension does, files least of all. Extensions run with everything your account may do." : {
 
     },
@@ -2125,6 +2137,18 @@
     "Handed to the terminal" : {
 
     },
+    "Heading" : {
+
+    },
+    "Heading 1" : {
+
+    },
+    "Heading 2" : {
+
+    },
+    "Heading 3" : {
+
+    },
     "Help translate" : {
       "comment" : "A button that opens the page where volunteers translate this app."
     },
@@ -2150,7 +2174,7 @@
       "comment" : "The kind of a result, shown beside its title. Here a command the user ran before."
     },
     "Hotkey" : {
-      "comment" : "A column heading over keyboard shortcuts."
+      "comment" : "A tile of the welcome tour."
     },
     "How long a closed launcher keeps the command you had open." : {
 
@@ -2216,6 +2240,9 @@
       "comment" : "The placeholder is a number of megabytes."
     },
     "It replaced an older checkpoint of the same name. Deleting this one does not bring the older one back." : {
+
+    },
+    "Italic" : {
 
     },
     "Its files and tabs are not touched. Only the list of them goes." : {
@@ -2357,6 +2384,9 @@
     "Light appearance" : {
 
     },
+    "Light that sweeps around the inside of the search field's border." : {
+
+    },
     "Link" : {
       "comment" : "A kind of copied thing.\nA web style link that opens an app, as a choice in a picker and as the label of its field."
     },
@@ -2492,7 +2522,7 @@
     "Menu Items" : {
 
     },
-    "Menus and windows" : {
+    "Menus" : {
       "comment" : "A tile of the welcome tour."
     },
     "Message" : {
@@ -2525,8 +2555,11 @@
     "Modified" : {
       "comment" : "A label before the date a file was last changed."
     },
+    "Mono" : {
+      "comment" : "A beam around the search field in greys alone."
+    },
     "More" : {
-
+      "comment" : "The label of the menu with the note's commands."
     },
     "More about %@" : {
       "comment" : "The placeholder is the name of this app."
@@ -2615,6 +2648,9 @@
     "New Snippet" : {
 
     },
+    "Next Result" : {
+
+    },
     "Next Track" : {
       "comment" : "A command that skips to the next song."
     },
@@ -2634,9 +2670,6 @@
 
     },
     "No analytics or tracking" : {
-
-    },
-    "No analytics or usage tracking" : {
 
     },
     "No analytics, no tracking" : {
@@ -2705,7 +2738,7 @@
     "No note has that name" : {
 
     },
-    "No notes here yet" : {
+    "No notes in Floe's folder in Notes yet" : {
 
     },
     "No notes in this folder yet" : {
@@ -2748,6 +2781,12 @@
       "comment" : "The placeholder is what the user typed in the settings search."
     },
     "No shortcuts match" : {
+
+    },
+    "No sign-up" : {
+
+    },
+    "No sign-up and no account" : {
 
     },
     "No snippets yet." : {
@@ -2805,7 +2844,7 @@
       "comment" : "The heading of a note in the release notes."
     },
     "Notes" : {
-      "comment" : "A tile of the welcome tour.\nThe kind of a result, shown beside its title. Here a row that writes a note.\nThe kind of app that keeps notes, as the label of the picker that chooses one."
+      "comment" : "A tile of the welcome tour.\nThe kind of a result, shown beside its title. Here a row that writes a note.\nThe kind of app that keeps notes, as the label of the picker that chooses one.\nThe name of Apple's notes app, on a button that opens a note in it."
     },
     "Notes didn’t answer" : {
       "comment" : "Notes is Apple's notes app."
@@ -2817,6 +2856,9 @@
 
     },
     "Nothing has been recorded for this extension yet." : {
+
+    },
+    "Nothing is asked until you click Grant Access" : {
 
     },
     "Nothing is listening on that port" : {
@@ -2855,8 +2897,14 @@
     "Now Playing" : {
       "comment" : "A command that shows the song that is playing and its artist."
     },
+    "Numbered List" : {
+
+    },
     "OK" : {
 
+    },
+    "Ocean" : {
+      "comment" : "A beam around the search field in blues and violets."
     },
     "Of %@" : {
       "comment" : "Under how much memory is in use. The placeholder is how much the Mac has, such as 16 GB."
@@ -2873,7 +2921,7 @@
       }
     },
     "Off" : {
-      "comment" : "Automatic updates: never check."
+      "comment" : "Automatic updates: never check.\nNo beam around the search field."
     },
     "Older" : {
       "comment" : "A button that shows older release notes."
@@ -2908,8 +2956,8 @@
     "Open Floe" : {
 
     },
-    "Open Floe from its menu bar icon. You can set a hotkey in Settings." : {
-
+    "Open Floe from its menu bar icon, or set a hotkey." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Open Floe's search of the menu bar's items." : {
 
@@ -2977,13 +3025,7 @@
     "Open in Shortcuts" : {
       "comment" : "Shortcuts is the name of Apple's app."
     },
-    "Open it with a hotkey" : {
-
-    },
     "Open source" : {
-
-    },
-    "Open source under the AGPL" : {
 
     },
     "Open the launcher from an app to search its menus." : {
@@ -3069,9 +3111,6 @@
     "Permissions and what Floe contacts." : {
 
     },
-    "Permissions optional" : {
-
-    },
     "Pick Color from Screen" : {
       "comment" : "A command that shows the eyedropper and copies the color under it."
     },
@@ -3114,8 +3153,8 @@
     "Prefix" : {
 
     },
-    "Press %@ to show or hide Floe from any app. You can change the hotkey in Settings." : {
-      "comment" : "The placeholder is a keyboard shortcut."
+    "Press %@ in any app. Change it in Settings." : {
+      "comment" : "A tile of the welcome tour. The placeholder is a keyboard shortcut."
     },
     "Press ⌘N to make one." : {
 
@@ -3128,6 +3167,9 @@
     },
     "Preview" : {
       "comment" : "The heading over a picture of how the launcher will look."
+    },
+    "Previous Result" : {
+
     },
     "Previous Track" : {
       "comment" : "A command that goes back to the song before."
@@ -3456,9 +3498,6 @@
     "Run Command" : {
 
     },
-    "Run Raycast extensions" : {
-
-    },
     "Run Shortcut" : {
       "comment" : "A button that runs the Shortcut the user named for Focus."
     },
@@ -3491,6 +3530,9 @@
     },
     "Running a command in Finder’s folder asks Finder which folder is in front, which macOS lets you allow or refuse." : {
 
+    },
+    "Runs Raycast extensions, yours included." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Runs on this Mac. Nothing is sent anywhere." : {
 
@@ -3640,6 +3682,9 @@
     "Search clipboard history…" : {
 
     },
+    "Search field beam" : {
+
+    },
     "Search field shape" : {
 
     },
@@ -3652,8 +3697,8 @@
     "Search menu items…" : {
 
     },
-    "Search notes" : {
-      "comment" : "The label of the field that filters the list of notes."
+    "Search menus and windows. Uses Accessibility." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Search notes, or name a new one…" : {
 
@@ -3663,9 +3708,6 @@
     },
     "Search the menu bar and app menus, and switch windows." : {
       "comment" : "One line on a permission card in the welcome."
-    },
-    "Search the menu bar and the menus of the app in front, and switch windows. These need Accessibility." : {
-      "comment" : "A tile of the welcome tour."
     },
     "Search the menus of %@…" : {
       "comment" : "The placeholder is the name of an app."
@@ -3740,6 +3782,9 @@
     },
     "Set a link for your clipboard app in Settings" : {
 
+    },
+    "Settings and aliases, the same on every Mac." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Settings file" : {
 
@@ -4004,14 +4049,14 @@
     "Sums, units and dates as you type them." : {
       "comment" : "A tile of the welcome tour."
     },
+    "Sunset" : {
+      "comment" : "A beam around the search field in oranges, pinks and reds."
+    },
     "Support Floe" : {
 
     },
     "Swap Shown and Hidden Items" : {
 
-    },
-    "Switch Note (⌘P)" : {
-      "comment" : "A tooltip on the note's name, which opens the list of notes."
     },
     "Switch to Tab" : {
 
@@ -4064,6 +4109,9 @@
     "Take Back" : {
 
     },
+    "Task" : {
+      "comment" : "A button that makes the line a task with a box to tick."
+    },
     "Temperature" : {
       "comment" : "A kind of unit, named in a calculator error."
     },
@@ -4073,7 +4121,7 @@
     "Text" : {
       "comment" : "A kind of copied thing."
     },
-    "Text that expands as you type, and quicklinks you open by name." : {
+    "Text that expands as you type, and quicklinks." : {
       "comment" : "A tile of the welcome tour."
     },
     "Text you paste or type by keyword." : {
@@ -4118,14 +4166,14 @@
     "Thaw isn't installed" : {
 
     },
-    "Thaw's actions are in the search, and Floe can follow its look." : {
-      "comment" : "A tile of the welcome tour."
-    },
     "Thaw's actions are in the search: type “thaw” to see them." : {
       "comment" : "The word in quotation marks is typed as it is and stays in English."
     },
     "Thaw's actions are in the search: type “thaw” to see them. The ones that change a Thaw setting need Automation turned on in Thaw." : {
       "comment" : "The word in quotation marks is typed as it is and stays in English."
+    },
+    "Thaw's actions in the search, and its look." : {
+      "comment" : "A tile of the welcome tour."
     },
     "Thaw's background follows the wallpaper, which the launcher cannot copy, so it is left out." : {
 
@@ -4384,7 +4432,7 @@
     "To convert money, switch on exchange rates in Settings, Privacy." : {
       "comment" : "A calculator error."
     },
-    "To read and write notes here, choose a folder of notes, such as an Obsidian vault, as the notes app in Settings." : {
+    "To read and write notes here, choose Apple Notes or a folder of notes, such as an Obsidian vault, as the notes app in Settings." : {
 
     },
     "Today" : {
@@ -4515,6 +4563,9 @@
     },
     "Turn a Focus on for a while" : {
       "comment" : "Focus is the macOS feature that silences notifications."
+    },
+    "Turn any off later in System Settings" : {
+
     },
     "Turn on Apple Intelligence in System Settings to use it here." : {
 
@@ -4777,16 +4828,16 @@
     "Your own apps" : {
       "comment" : "A tile of the welcome tour."
     },
-    "`>` and a command runs it. ⌘Return opens your terminal." : {
+    "`>` and a command runs it in your shell." : {
       "comment" : "A tile of the welcome tour."
     },
-    "`ask` and a question, answered by a tool you are signed in to, Apple Intelligence or an API. A switch keeps it all on your Mac." : {
+    "`ask` and a question. It can stay on your Mac." : {
       "comment" : "A tile of the welcome tour. ask is the keyword typed in the search."
     },
     "`contact` and a name finds a person." : {
       "comment" : "One line on a permission card in the welcome. contact is a command the user types and stays in English."
     },
-    "`note` writes to your notes app. Floating Note stays on top." : {
+    "`note` writes to your notes app." : {
       "comment" : "A tile of the welcome tour. note is the keyword typed in the search."
     },
     "`remind` and a sentence adds a reminder." : {
@@ -4860,6 +4911,9 @@
     },
     "backup" : {
       "comment" : "Words that find the Time Machine pane of System Settings, separated by commas."
+    },
+    "beam, glow, light, border, rainbow, animation, search bar, input" : {
+      "comment" : "Words that find the Search field beam setting in the settings search, separated by commas."
     },
     "bluetooth, turn bluetooth off, turn bluetooth on" : {
       "comment" : "Words that find the Toggle Bluetooth command, separated by commas."
@@ -5016,6 +5070,9 @@
     },
     "focus, do not disturb, dnd, shortcut, shortcuts, notifications, quiet" : {
       "comment" : "Words that find the Shortcut for Focus setting in the settings search, separated by commas."
+    },
+    "fps, frame rate, frames per second, smooth, animation, beam, battery" : {
+      "comment" : "Words that find the Beam frame rate setting in the settings search, separated by commas."
     },
     "gestures, tap to click" : {
       "comment" : "Words that find the Trackpad pane of System Settings, separated by commas."
@@ -5420,9 +5477,6 @@
 
     },
     "⌘⇧C Copy Path" : {
-
-    },
-    "⌘⇧C copies details · Esc goes back" : {
 
     }
   },

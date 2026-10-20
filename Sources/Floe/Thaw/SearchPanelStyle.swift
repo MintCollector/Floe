@@ -28,6 +28,7 @@ struct SearchQueryField<Accessory: View>: View {
     @FocusState private var isFocused: Bool
     @Environment(\.searchFieldShape) private var fieldShape
     @Environment(\.fieldPieceOutline) private var pieceOutline
+    @Environment(\.searchFieldBeam) private var beam
 
     var body: some View {
         Group {
@@ -36,18 +37,36 @@ struct SearchQueryField<Accessory: View>: View {
                 row
                     .padding(.horizontal, ThawSpacing.inset + 14)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background {
+                        if let pieceOutline, !isRefused, beam != .off {
+                            SearchFieldBeamView(outline: pieceOutline, beam: beam, part: .spill)
+                        }
+                    }
                     .overlay {
-                        if isRefused, let pieceOutline {
-                            pieceOutline.strokeBorder(Color(nsColor: .systemRed), lineWidth: 1.5)
+                        if let pieceOutline {
+                            if isRefused {
+                                pieceOutline.strokeBorder(Color(nsColor: .systemRed), lineWidth: 1.5)
+                            } else if beam != .off {
+                                SearchFieldBeamView(outline: pieceOutline, beam: beam)
+                            }
                         }
                     }
             } else {
                 row
                     .padding(EdgeInsets(top: 11, leading: 14, bottom: 11, trailing: 14))
+                    // On the glass and under the text: the glass draws itself behind what it is given.
+                    .background {
+                        if !isRefused, beam != .off {
+                            SearchFieldBeamView(outline: fieldShape.outline, beam: beam, part: .spill)
+                        }
+                    }
                     .thawGlass(.field(isFocused: isFocused), in: fieldShape.outline)
                     .overlay {
+                        // A refusal's red takes the beam's place, so the one cue is not lost in the other.
                         if isRefused {
                             fieldShape.outline.strokeBorder(Color(nsColor: .systemRed), lineWidth: 1.5)
+                        } else if beam != .off {
+                            SearchFieldBeamView(outline: fieldShape.outline, beam: beam)
                         }
                     }
                     .padding(.horizontal, ThawSpacing.inset)
@@ -87,6 +106,16 @@ struct SearchQueryField<Accessory: View>: View {
     }
 }
 
+/// The measures every row of the panel shares, whatever its mode.
+enum PanelRow {
+    static let height: CGFloat = 38
+    /// The box a row's icon sits in, and the room between it and the title.
+    static let iconBox: CGFloat = 24
+    static let iconSpacing = ThawSpacing.row
+    /// Room at either end of the row, inside its highlight.
+    static let inset = ThawSpacing.base
+}
+
 /// Thaw's palette row: icon, name, and a quieter second line when it says something the name doesn't.
 struct PaletteRow<Icon: View, Trailing: View>: View {
     let title: String
@@ -107,8 +136,8 @@ struct PaletteRow<Icon: View, Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            icon.frame(width: 24, height: 24)
+        HStack(spacing: PanelRow.iconSpacing) {
+            icon.frame(width: PanelRow.iconBox, height: PanelRow.iconBox)
             VStack(alignment: .leading, spacing: 1) {
                 Text(styledTitle).font(ThawType.body).lineLimit(1)
                 if let subtitle {
@@ -118,7 +147,8 @@ struct PaletteRow<Icon: View, Trailing: View>: View {
             Spacer(minLength: 0)
             trailing
         }
-        .padding(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
+        .padding(.horizontal, PanelRow.inset)
+        .frame(minHeight: PanelRow.height)
         .modifier(SearchRowBackground(selected: selected))
     }
 }
@@ -156,20 +186,6 @@ struct SearchRowBackground: ViewModifier {
 extension EnvironmentValues {
     /// A control's radius, unless the container says what keeps a row's corners concentric with its own.
     @Entry var searchRowCornerRadius: CGFloat = ThawRadius.control
-}
-
-/// A heading row between groups of results.
-struct SearchSectionHeader: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .fontWeight(.semibold)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, ThawSpacing.row)
-            .padding(.leading, ThawSpacing.compact)
-    }
 }
 
 /// A flat key cap, not glass: glass per cap on the panel's glass refracts.
