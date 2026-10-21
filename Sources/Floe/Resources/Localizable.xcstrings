@@ -224,6 +224,17 @@
     "%@ · stopped" : {
       "comment" : "Beside the receipt of a timer that was stopped. The placeholder is a time, such as 2 hr. ago."
     },
+    "%@ “%@”" : {
+      "comment" : "A fallback row: the first placeholder is a command's name, the second is what the user typed.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ “%2$@”"
+          }
+        }
+      }
+    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
@@ -601,6 +612,9 @@
     "About Floe" : {
 
     },
+    "Access" : {
+      "comment" : "A tab of the Privacy settings: what the app may read or run on this Mac."
+    },
     "Accessibility" : {
       "comment" : "The macOS permission named Accessibility."
     },
@@ -626,6 +640,9 @@
       "comment" : "Stands in for an action's title when the extension gave none."
     },
     "Actions…" : {
+
+    },
+    "Add" : {
 
     },
     "Add %@ to the menu bar?" : {
@@ -973,6 +990,9 @@
     "Border" : {
       "comment" : "The line drawn around the launcher panel."
     },
+    "Border and Shadow" : {
+
+    },
     "Browse Notes" : {
       "comment" : "The command that shows the user's notes in the panel, to read and write them."
     },
@@ -987,6 +1007,9 @@
     },
     "Build" : {
       "comment" : "A label before the build number of this app."
+    },
+    "Built-in" : {
+
     },
     "Built-in Commands" : {
 
@@ -1789,7 +1812,7 @@
 
     },
     "Fallbacks" : {
-      "comment" : "A section title above the searches offered when nothing else matches.\nQuicklinks offered under the results of every search."
+      "comment" : "A section title above the searches offered when nothing else matches.\nThe name of a settings page: the rows offered under the results of every search."
     },
     "Family (System Settings)" : {
       "comment" : "The name of a pane of System Settings.",
@@ -1912,7 +1935,7 @@
         }
       }
     },
-    "Floe collects no analytics or usage data. What you open, and how often, stays in a file on this Mac. The network calls it makes are listed below." : {
+    "Floe collects no analytics or usage data. What you open, and how often, stays in a file on this Mac. The network calls it makes are listed under Network." : {
 
     },
     "Floe has no sign-in of its own yet. For now the browser returns through raycast.com, and some extensions get their token from Raycast’s servers. This is temporary and may stop working. Floe’s own sign-in service is planned to replace it." : {
@@ -2125,6 +2148,9 @@
     "Glass Effect" : {
 
     },
+    "Glass and Tint" : {
+
+    },
     "Gradient" : {
       "comment" : "A background tint choice: two colors blended."
     },
@@ -2286,6 +2312,9 @@
     "Kept in the folder %@" : {
       "comment" : "Where the notes on screen are stored. The placeholder is a folder's name."
     },
+    "Kept on This Mac" : {
+      "comment" : "A tab of the Privacy settings: what the app keeps about what it did, such as searches, receipts and logs."
+    },
     "Kept on this Mac until you send it to %@" : {
       "comment" : "Where the scratch note is stored. The placeholder is the name of an app."
     },
@@ -2307,13 +2336,13 @@
     "Keywords" : {
       "comment" : "A section title. Keywords are the words the search answers to, such as remind or timer."
     },
-    "Keywords and fallbacks for web search." : {
-
-    },
     "Keywords can't contain spaces." : {
 
     },
     "Keywords cannot contain spaces." : {
+
+    },
+    "Keywords for web search." : {
 
     },
     "Keywords need at least 2 characters." : {
@@ -2576,6 +2605,12 @@
         }
       }
     },
+    "Move Down" : {
+
+    },
+    "Move Up" : {
+
+    },
     "Move to Trash" : {
 
     },
@@ -2611,6 +2646,9 @@
     },
     "Neither Spotify nor Music is open" : {
       "comment" : "Spotify and Music are the names of two apps."
+    },
+    "Network" : {
+      "comment" : "A tab of the Privacy settings: what the app sends over the network."
     },
     "Network (System Settings)" : {
       "comment" : "The name of a pane of System Settings.",
@@ -2703,6 +2741,9 @@
       "comment" : "Beside a reminder that has no due date."
     },
     "No disks to eject" : {
+
+    },
+    "No fallbacks. Searches end with what they found." : {
 
     },
     "No files are selected in the Finder." : {
@@ -2923,6 +2964,9 @@
     "Off" : {
       "comment" : "Automatic updates: never check.\nNo beam around the search field."
     },
+    "Offered under your results, in this order, with what you typed. Return opens the first when nothing else matches." : {
+
+    },
     "Older" : {
       "comment" : "A button that shows older release notes."
     },
@@ -2934,6 +2978,9 @@
     },
     "On the power adapter" : {
       "comment" : "About the battery: plugged in and not charging."
+    },
+    "One message ran past %lld MB." : {
+      "comment" : "The placeholder is a number of megabytes."
     },
     "Only use AI that runs on this Mac" : {
 
@@ -3629,6 +3676,9 @@
     "Script Commands" : {
 
     },
+    "Scripts" : {
+
+    },
     "Scripts folder" : {
 
     },
@@ -3880,9 +3930,6 @@
 
     },
     "Show your upcoming events and meeting links in the search." : {
-
-    },
-    "Shown under your results when you search." : {
 
     },
     "Shut Down" : {
@@ -4234,6 +4281,9 @@
     "The calculator converts money with the European Central Bank’s daily rates, downloaded about twice a day. Off removes them." : {
 
     },
+    "The change didn't load" : {
+
+    },
     "The checkpoint %@ was already deleted" : {
       "comment" : "The placeholder is the name the user gave a checkpoint."
     },
@@ -4262,6 +4312,9 @@
 
     },
     "The extension isn't responding." : {
+
+    },
+    "The extension sent a message too large to read and was stopped." : {
 
     },
     "The extension stopped unexpectedly." : {
@@ -4657,9 +4710,6 @@
     "Use as Microphone" : {
       "comment" : "A button that makes the selected device the one that records."
     },
-    "Use as fallback" : {
-
-    },
     "Use for Sound Output" : {
       "comment" : "A button that makes the selected device the one sound plays through."
     },
@@ -4751,6 +4801,9 @@
 
     },
     "What answers Ask AI and extensions." : {
+
+    },
+    "What is offered under your results, and in what order." : {
 
     },
     "What’s New" : {
@@ -5041,11 +5094,8 @@
     "extensions, record, access, hosts, folders, programs, network, reached, forget" : {
       "comment" : "Words that find the Record what extensions reach setting in the settings search, separated by commas."
     },
-    "fallback, default, search, results" : {
-      "comment" : "Words that find the Use as fallback setting in the settings search, separated by commas."
-    },
-    "fallback, fallbacks, order, reorder, default, results, bottom" : {
-      "comment" : "Words that find the Fallbacks setting in the settings search, separated by commas."
+    "fallback, fallbacks, order, reorder, default, results, bottom, search files, ask ai" : {
+      "comment" : "Words that find the Fallbacks page in the settings search, separated by commas."
     },
     "family sharing" : {
       "comment" : "Words that find the Family pane of System Settings, separated by commas."
@@ -5239,7 +5289,7 @@
     "quicklink, keyword, link, name, url, list, edit, delete" : {
       "comment" : "Words that find the Quicklinks setting in the settings search, separated by commas."
     },
-    "quicklink, quicklinks, keyword, search, web, fallback, link, url" : {
+    "quicklink, quicklinks, keyword, search, web, link, url" : {
       "comment" : "Words that find the Quicklinks page in the settings search, separated by commas."
     },
     "quit all apps, quit all, close all apps" : {

@@ -350,6 +350,22 @@ struct ExtensionSessionTests {
         #expect(session.isStopping)
     }
 
+    @Test func aMessageTooLargeToReadStopsTheHostAndSaysWhy() {
+        var crashes = 0
+        session.onMessage = {
+            if $0["type"] as? String == "crashed" {
+                crashes += 1
+            }
+        }
+        session.apply(.oversized(bytes: 300 * 1_048_576))
+        #expect(session.failure?.kind == .crashed)
+        #expect(session.failure?.message == "The extension sent a message too large to read and was stopped.")
+        #expect(session.failure?.details == "One message ran past 300 MB.")
+        #expect(session.isStopping)
+        session.apply(.oversized(bytes: 300 * 1_048_576))
+        #expect(crashes == 1)
+    }
+
     @Test func anUnresponsiveHostStillHasAMemoryCeiling() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         session.heartbeat(now: start)
@@ -551,8 +567,10 @@ struct ExtensionSessionTests {
             "PATH": "/opt/homebrew/bin", "FLOE_PREFERENCES": #"{"unit":"metric"}"#, "FLOE_AI": "1", "FLOE_LAUNCH_TYPE": "userInitiated",
             "FLOE_RENDER_REFERENCES": "1", "FLOE_OAUTH": "1",
         ])
-        let background = ExtensionSession.hostVariables(base, preferences: nil, hasAI: false, launch: ("background", nil))
+        let background = ExtensionSession.hostVariables(base, preferences: nil, hasAI: false, launch: ("background", nil, nil))
         #expect(background == ["PATH": "/opt/homebrew/bin", "FLOE_LAUNCH_TYPE": "background", "FLOE_RENDER_REFERENCES": "1", "FLOE_OAUTH": "1"])
+        let fallback = ExtensionSession.hostVariables(base, preferences: nil, hasAI: false, launch: ("userInitiated", nil, "tide"))
+        #expect(fallback["FLOE_FALLBACK_TEXT"] == "tide", "a command run as a fallback reads what was typed")
     }
 
     @Test func theHostIsToldNotToWatchWhileTheRecordIsOff() {

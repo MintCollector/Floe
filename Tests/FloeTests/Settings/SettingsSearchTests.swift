@@ -138,6 +138,7 @@ struct SearchIndexTests {
             case .sync: #expect(entry.paneLabel == .sync)
             case .appearance: #expect(entry.paneLabel == .appearance)
             case .quicklinks: #expect(entry.paneLabel == .quicklinks)
+            case .fallbacks: #expect(entry.paneLabel == .fallbacks)
             case .snippets: #expect(entry.paneLabel == .snippets)
             case .extensionStore: #expect(entry.paneLabel == .extensionStore)
             case .privacy: #expect(entry.paneLabel == .privacy)
@@ -147,7 +148,7 @@ struct SearchIndexTests {
         }
     }
 
-    @Test(arguments: [SettingsPage.general, .commands, .applications, .ai, .sync, .quicklinks, .snippets, .extensionStore, .appearance, .privacy, .about])
+    @Test(arguments: [SettingsPage.general, .commands, .applications, .ai, .sync, .quicklinks, .fallbacks, .snippets, .extensionStore, .appearance, .privacy, .about])
     func everyPaneOfFloeCanBeFoundByName(pane: SettingsPage) {
         #expect(SearchIndex.paneEntries.contains { $0.pane == pane })
     }
@@ -410,6 +411,18 @@ struct SettingsSearchNavigationTests {
         search.requestedAnchor = "zeta-tools/timer"
         #expect(SettingsSearchNavigation.consumeAnchor(search: search) == "zeta-tools/timer")
         #expect(SettingsSearchNavigation.consumeAnchor(search: search) == nil)
+    }
+
+    @Test func aChosenResultIsHandedToItsPaneOnceAndASidebarJumpDropsIt() throws {
+        let selection = SettingsSelection()
+        let search = SearchModel()
+        let entry = try #require(SearchIndex.staticEntries.first { $0.id == "privacy.keepsReceipts" })
+        SettingsSearchNavigation.selectSearchResult(entry, selection: selection, search: search)
+        #expect(SettingsSearchNavigation.consumeEntry(search: search) == "privacy.keepsReceipts")
+        #expect(SettingsSearchNavigation.consumeEntry(search: search) == nil)
+        SettingsSearchNavigation.selectSearchResult(entry, selection: selection, search: search)
+        SettingsSearchNavigation.selectSidebarPane(.about, selection: selection, search: search)
+        #expect(search.requestedEntry == nil)
     }
 
     @Test func theArrowsWalkTheResultsInTheOrderShownAndStopAtTheEnds() throws {

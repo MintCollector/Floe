@@ -103,7 +103,7 @@ After you install:
 - **An extension's Swift helper is built the first time a command calls it**, which takes a few minutes. Rust helpers do not run on macOS, as in Raycast.
 - **`Clipboard.read` with an offset reads Floe's clipboard history**, and Raycast's icon names draw as SF Symbols.
 - **More extensions build and run as they do in Raycast:** self-signed certificates and proxies through node-fetch, undici and ws, better-sqlite3 on Bun's SQLite, and packages whose module build lacks what Node's build has. An extension's support folder holds only its own files.
-- **An extension you are writing runs again when you save it.** While one of its commands is open, a save under `src` or `assets`, or of `package.json`, runs the command again with the same arguments.
+- **An extension you are writing runs again when you save it.** While one of its commands is open, a save under `src` or `assets`, or of `package.json`, runs the command again with the same arguments. A change that fails to build or load leaves the last working view up, with a toast that says why.
 
 #### Extension settings and sign-in
 - **Turn off an extension, or one of its commands**, on its page in Settings. Floe leaves what is off out of the search, and a hotkey, the menu bar or Shortcuts will not run it.
@@ -114,6 +114,7 @@ After you install:
 
 #### Built in
 - **Snippets with text expansion, and quicklinks** with fallback searches. By @OwenCope in [#6](https://github.com/thaw-app/Floe/pull/6).
+- **Settings > Fallbacks chooses what is offered under every search, and in what order.** Running the text as a shell command, Search Files, Ask AI, any quicklink that searches, and any extension command that takes text can be added, moved and removed. A command gets what you typed in its first argument and as `fallbackText`. Return opens the first fallback when nothing else matches.
 - **A calculator with unit conversion.** It converts money with the European Central Bank's daily rates once you turn that on in Settings > Privacy, and shows the day the rates are from. Powers are drawn as real superscripts, and `pi` is π. By @lylythechosenone in [#7](https://github.com/thaw-app/Floe/pull/7).
 - **The calculator reads sums the way people type them.** `200 + 10%` is 220, `100 f to c` converts a temperature, `5 ft 10 in to cm` is 177.8 cm and `today + 3 days` is a date. `today` on its own shows the date.
 - **`define tide` shows what the dictionary says about a word.** The answer comes from the dictionaries on your Mac, the ones switched on in the Dictionary app, so nothing is sent anywhere. Return opens the word in Dictionary, and the Actions menu copies the definition.

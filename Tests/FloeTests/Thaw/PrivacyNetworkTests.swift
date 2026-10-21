@@ -43,4 +43,21 @@ struct PrivacyNetworkTests {
         #expect(SearchIndex.staticEntries.contains { $0.id == "privacy.permissions" })
         #expect(!SearchIndex.generalEntries.contains { $0.section == "Permissions" })
     }
+
+    @Test func everyPrivacyResultOpensTheTabThatHoldsIt() {
+        let ids = SearchIndex.entries(for: .privacy).map(\.id).filter { $0 != "pane.privacy" }
+        #expect(Set(ids).count == ids.count, "every result on the page has an id of its own")
+        let tabs = Dictionary(ids.map { ($0, PrivacyTab(entry: $0)) }) { first, _ in first }
+        #expect(tabs.values.allSatisfy { $0 != nil }, "a result on the page names its tab")
+        #expect(tabs["privacy.permissions"] == .access)
+        #expect(tabs["privacy.searchSources.files"] == .access)
+        #expect(tabs["privacy.contacts"] == .access)
+        #expect(tabs["privacy.network"] == .network)
+        #expect(tabs["privacy.fetchesExchangeRates"] == .network)
+        #expect(tabs["privacy.aiOnThisMacOnly"] == .network)
+        #expect(tabs["privacy.remembersSearches"] == .kept)
+        #expect(tabs["privacy.keepsReceipts"] == .kept)
+        #expect(tabs["privacy.diagnosticLogging"] == .kept)
+        #expect(PrivacyTab(entry: "general.launchAtLogin") == nil, "a result elsewhere leaves the tab alone")
+    }
 }

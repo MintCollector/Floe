@@ -57,14 +57,24 @@ final class LauncherModel: ObservableObject {
     /// True while the panel shows the file search instead of the root search.
     @Published var isSearchingFiles = false
     /// The file search's own state. Not published: its changes redraw its view only.
-    lazy var fileSearch = FileSearchModel()
+    var fileSearch: FileSearchModel {
+        if let madeFileSearch {
+            return madeFileSearch
+        }
+        let search = makeFileSearch()
+        madeFileSearch = search
+        return search
+    }
+
+    /// Nil until the file search is first used, so a reset does not make one only to cancel it.
+    private var madeFileSearch: FileSearchModel?
 
     /// True while the panel shows the menu bar item search instead of the root search.
     @Published var isSearchingMenuBar = false
     /// True while the panel shows the clipboard history instead of the root search.
     @Published var isShowingClipboardHistory = false
     /// The clipboard history view's own state. Not published: its changes redraw its view only.
-    lazy var clipboardHistory = ClipboardHistoryModel(usage: usage) { [unowned self] in clipboard }
+    lazy var clipboardHistory = makeClipboardHistory()
     /// The clipboard history the panel shows, recorded since Floe started.
     let clipboard: ClipboardHistoryStore
     /// The notes of the user's folder, while the panel shows them instead of the root search.
@@ -73,12 +83,14 @@ final class LauncherModel: ObservableObject {
     var noteDeskSave: Task<Bool, Never>?
     /// The question on screen and its answer, while the panel shows them instead of the root search.
     @Published var askAI: AskAIModel?
+    /// A question asked before something that cannot be taken back, over whatever the panel shows.
+    @Published var question: PanelQuestion?
     /// Answers the question. A test replaces it: the real thing reaches the chosen AI source.
     var askAIRequest: AskAIModel.Request = AskAIModel.live
     /// Whether an AI source can answer. The app delegate sets it; without one no Ask AI row is offered.
     var canAskAI: () -> Bool = { false }
     /// The menu bar item search's own state. Not published: its changes redraw its view only.
-    lazy var menuBarSearch = MenuBarSearchModel(settings: settings)
+    lazy var menuBarSearch = makeMenuBarSearch()
     /// The front app's menu commands, while the panel shows them instead of the root search.
     @Published var menuItemSearch: MenuItemSearchModel?
     /// What that search asks of the system. A test replaces it: the real thing reads another app's menus.
@@ -137,13 +149,11 @@ final class LauncherModel: ObservableObject {
         resolvedApps = ResolvedApps(settings: settings)
         catalog.onChange = { [weak self] in self?.catalogChanged($0) }
         connectRunner()
-        connectModes()
         // Views read the catalog's loading state and the open command through the model, so their changes redraw it.
         catalog.$isLoading.removeDuplicates().dropFirst().map { _ in () }
             .merge(with: runner.$session.dropFirst().map { _ in () })
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
-        EmojiCatalog.preload()
         CalendarAgenda.shared.onChange = { [weak self] in self?.refresh() }
         resolvedApps.followChoices()
         refresh()
@@ -234,6 +244,8 @@ final class LauncherModel: ObservableObject {
     /// The panel closed. The open command survives for the configured delay, so reopening resumes it.
     func panelDidHide() {
         isPanelShown = false
+        // Closing the panel is no answer to go ahead on.
+        question = nil
         pendingReset?.cancel()
         let delay = settings.popToRootDelay
         guard delay > 0, runner.session != nil || setup != nil else {
@@ -253,6 +265,8 @@ final class LauncherModel: ObservableObject {
     /// Cancels the deferred reset. What is read again for the search waits for panelDidShow.
     func panelWillShow() {
         isPanelShown = true
+        // Built the first time the panel opens rather than at launch, and well before `:` is typed.
+        EmojiCatalog.preload()
         pendingReset?.cancel()
         pendingReset = nil
     }
@@ -267,7 +281,7 @@ final class LauncherModel: ObservableObject {
         menuItemSearch = nil
         isShowingClipboardHistory = false
         isSearchingFiles = false
-        fileSearch.cancel()
+        madeFileSearch?.cancel()
         closeNoteDesk()
         closeAskAI()
         recalledQuery = nil
