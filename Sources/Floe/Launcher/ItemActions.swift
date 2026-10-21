@@ -86,14 +86,26 @@ struct ActionsAnchor: NSViewRepresentable {
 enum Confirm {
     /// Asks before something that cannot be taken back, and answers whether to go on.
     /// The panel is gone by then, so Floe comes forward for the question.
-    static func destructive(_ question: String, detail: String, button: String) -> Bool {
+    /// `show` puts the question on screen and waits for the answer; a test answers it instead.
+    static func destructive(
+        _ question: String,
+        detail: String,
+        button: String,
+        show: @MainActor (NSAlert) -> NSApplication.ModalResponse = { NSApp.activate(); return $0.runModal() }
+    ) -> Bool {
+        show(destructiveAlert(question, detail: detail, button: button)) == .alertFirstButtonReturn
+    }
+
+    static func destructiveAlert(_ question: String, detail: String, button: String) -> NSAlert {
         let alert = NSAlert()
         alert.messageText = question
         alert.informativeText = detail
-        alert.addButton(withTitle: button).hasDestructiveAction = true
+        let confirm = alert.addButton(withTitle: button)
+        confirm.hasDestructiveAction = true
+        // AppKit takes Return off a destructive button; the question was asked by a command run from the keyboard.
+        confirm.keyEquivalent = "\r"
         alert.addButton(withTitle: String(localized: "Cancel", bundle: .floe))
-        NSApp.activate()
-        return alert.runModal() == .alertFirstButtonReturn
+        return alert
     }
 }
 
