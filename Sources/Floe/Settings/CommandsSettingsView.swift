@@ -41,6 +41,7 @@ struct CommandsSettingsView: View {
             case .extensions: extensionsSection
             case .scripts: scriptsSection
             case .menuBar: MenuBarCommandsSettingsSection(catalog: catalog, settings: settings)
+            case .actions: AlternativeActionsSettingsSection(catalog: catalog, settings: settings)
             }
         }
         .formStyle(.grouped)
@@ -117,6 +118,7 @@ nonisolated enum CommandsTab: SettingsTab {
     case extensions
     case scripts
     case menuBar
+    case actions
 
     init?(entry id: String) {
         switch id {
@@ -134,6 +136,7 @@ nonisolated enum CommandsTab: SettingsTab {
         case .extensions: "Extensions"
         case .scripts: "Scripts"
         case .menuBar: "Menu Bar"
+        case .actions: "Actions"
         }
     }
 
@@ -143,6 +146,7 @@ nonisolated enum CommandsTab: SettingsTab {
         case .extensions: "puzzlepiece.extension"
         case .scripts: "terminal"
         case .menuBar: "menubar.rectangle"
+        case .actions: "return"
         }
     }
 }

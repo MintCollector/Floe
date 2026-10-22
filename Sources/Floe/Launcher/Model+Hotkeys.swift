@@ -52,6 +52,9 @@ extension LauncherModel {
 
     /// Opens an app, or hides it if it's already in front, like a per-app hotkey in Thaw.
     func toggleApp(_ app: AppEntry) {
+        if features.actions.runHotkey(for: app) {
+            return
+        }
         usage.recordUse(of: RootItem.app(app).id)
         if let running = NSWorkspace.shared.frontmostApplication, running.bundleURL?.standardizedFileURL == app.url.standardizedFileURL {
             running.hide()

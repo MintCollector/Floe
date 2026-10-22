@@ -32,6 +32,8 @@ final class LauncherFeatures {
     let system = SystemRows()
     let notes: NoteRows
     let found = FoundRows()
+    /// What Return, the Actions menu and keys do on apps, files and links, as the user chose.
+    let actions = AlternativeActions()
 
     /// The features that own rows, asked in turn what a row's Return, actions and keys do.
     let rowOwners: [any RowOwner]
@@ -46,6 +48,7 @@ final class LauncherFeatures {
         connectReaching(links)
         connectKeywords(links)
         connectSearched(links)
+        connectActions(links)
     }
 
     /// What most features ask of the launcher, each reaching the model without keeping it.
@@ -198,5 +201,23 @@ final class LauncherFeatures {
             model?.query = $0
             model?.focusToken += 1
         }
+    }
+
+    /// Alternative actions, which stand in front of what Floe does on a result.
+    private func connectActions(_ links: Links) {
+        weak let model = links.model
+        actions.host = AlternativeActions.Host(
+            settings: { model?.settings.alternativeActions ?? ActionSettings() },
+            scripts: { model?.catalog.allScripts ?? [] },
+            floeActions: { model?.floeActions(for: $0) ?? [] },
+            floeTitle: { model?.floeActionTitle(for: $0) ?? "" },
+            openAsFloeDoes: { model?.openAsFloeDoes($0) },
+            used: { item in
+                model?.usage.recordUse(of: item.id)
+                model?.rememberQuery()
+            },
+            showHUD: links.showHUD,
+            leave: links.leave
+        )
     }
 }

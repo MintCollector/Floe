@@ -27,6 +27,9 @@
     "%@ ahead of here" : {
       "comment" : "The placeholder is a length of time, such as 9 hours."
     },
+    "%@ already does something in the launcher." : {
+      "comment" : "The placeholder is a key combination, such as ⌘ K."
+    },
     "%@ and %@" : {
       "comment" : "Two counts joined, such as 3 files and 5 tabs.",
       "localizations" : {
@@ -84,6 +87,17 @@
     },
     "%@ is a sibling of Thaw, built by the same people in the same organization. It shares Thaw’s design system and much of its design." : {
       "comment" : "The placeholder is the name of this app."
+    },
+    "%@ is already the keys for %@." : {
+      "comment" : "The first placeholder is a key combination, such as ⌘ K; the second is the name of an action.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ is already the keys for %2$@."
+          }
+        }
+      }
     },
     "%@ is chosen, which is not on this Mac. While the switch below is on, Floe refuses to ask it, so no question is sent." : {
       "comment" : "The placeholder is the address of a server."
@@ -507,6 +521,9 @@
     "A follow-up in Ask AI sends that conversation’s earlier questions and answers again. Floe saves none of it." : {
       "comment" : "Ask AI is the name of the feature that answers a question in the launcher."
     },
+    "A script command with a `# @floe.subjects` line is an action on results of that kind: app, file, folder or url. It is listed here and in the Actions menu instead of in the search, and is handed the result in variables that start with FLOE_." : {
+
+    },
     "A search that starts with a program on this Mac and has a flag, a path or a pipe in it gets a Run row under the other results." : {
 
     },
@@ -611,6 +628,9 @@
     },
     "Action" : {
       "comment" : "Stands in for an action's title when the extension gave none."
+    },
+    "Actions" : {
+
     },
     "Actions…" : {
 
@@ -786,6 +806,9 @@
     "App" : {
       "comment" : "A label before the name of the app a copied thing came from."
     },
+    "App hotkeys do what Return does" : {
+
+    },
     "Appearance" : {
       "comment" : "The name of a settings page."
     },
@@ -869,6 +892,9 @@
     },
     "Applications" : {
       "comment" : "The name of a settings page."
+    },
+    "Apps" : {
+
     },
     "Area" : {
       "comment" : "A kind of unit, named in a calculator error."
@@ -2309,6 +2335,9 @@
         }
       }
     },
+    "Keys" : {
+
+    },
     "Keyword" : {
       "comment" : "The kind of a result, shown beside its title. Here a word the search answers to.\nThe word typed in the search to use a quicklink or a snippet."
     },
@@ -2397,6 +2426,9 @@
     },
     "Link" : {
       "comment" : "A kind of copied thing.\nA web style link that opens an app, as a choice in a picker and as the label of its field."
+    },
+    "Links" : {
+
     },
     "Liquid Glass" : {
       "comment" : "A kind of glass material for the launcher, as a choice in a picker."
@@ -2646,6 +2678,9 @@
     },
     "New" : {
       "comment" : "A label before the button that creates a new extension."
+    },
+    "New Action Script" : {
+
     },
     "New Note" : {
 
@@ -3054,6 +3089,15 @@
     "Open in Shortcuts" : {
       "comment" : "Shortcuts is the name of Apple's app."
     },
+    "Open in Your Editor" : {
+      "comment" : "An action on a file or folder: open it in the editor app chosen in Settings."
+    },
+    "Open in Your Terminal" : {
+      "comment" : "An action on a file or folder: open it in the terminal app chosen in Settings."
+    },
+    "Open or Hide" : {
+      "comment" : "An action on an app: hide it when it is in front, or else open it."
+    },
     "Open source" : {
 
     },
@@ -3083,6 +3127,9 @@
     },
     "Origins" : {
       "comment" : "The heading over the projects this app grew out of."
+    },
+    "Otherwise an app's hotkey opens it, or hides it when it's in front." : {
+
     },
     "Other…" : {
 
@@ -3491,6 +3538,9 @@
     "Result" : {
 
     },
+    "Results" : {
+
+    },
     "Resume" : {
       "comment" : "A verb on a button: open what a checkpoint holds."
     },
@@ -3499,6 +3549,12 @@
     },
     "Resumed %@" : {
       "comment" : "The placeholder is a checkpoint's name."
+    },
+    "Return" : {
+
+    },
+    "Return does" : {
+
     },
     "Return opens Language & Region, where Translation Languages downloads it." : {
       "comment" : "Language & Region and Translation Languages are named as System Settings names them."
@@ -3903,6 +3959,9 @@
 
     },
     "Show in Finder" : {
+
+    },
+    "Show in the Actions menu" : {
 
     },
     "Show larger" : {
@@ -4783,6 +4842,9 @@
     "Welcome window" : {
 
     },
+    "What Floe Does" : {
+      "comment" : "A choice for what Return does on a result: Floe's own action, such as opening it."
+    },
     "What Floe does" : {
 
     },
@@ -4803,6 +4865,9 @@
     },
     "Where" : {
       "comment" : "A label before the folder a file is in."
+    },
+    "Where the action doesn't apply, such as a script for running apps on one that isn't, Return does what Floe does." : {
+
     },
     "Which extension commands have an item in the menu bar." : {
 
@@ -4850,6 +4915,9 @@
 
     },
     "Your Mac can sleep again" : {
+
+    },
+    "Your Own Actions" : {
 
     },
     "Your Settings" : {

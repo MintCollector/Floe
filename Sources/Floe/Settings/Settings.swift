@@ -124,6 +124,8 @@ final class AppSettings: ObservableObject {
     @Published var syncsWithICloud = false
     /// Whether extension preferences are among what syncs. Only matters while `syncsWithICloud` is on.
     @Published var syncsExtensionSettings = true
+    /// What Return, the Actions menu and keys do on apps, files and links.
+    @Published var alternativeActions = ActionSettings()
 
     /// Whether a command may be found and run: its extension is on, and so is the command.
     func isEnabled(_ command: ExtensionCommand) -> Bool {
@@ -200,6 +202,7 @@ final class AppSettings: ObservableObject {
         var aiSourceByExtension: [String: AISource]?
         var syncsWithICloud: Bool?
         var syncsExtensionSettings: Bool?
+        var alternativeActions: ActionSettings?
     }
 
     private static let defaultsKey = "settings"
@@ -332,6 +335,7 @@ final class AppSettings: ObservableObject {
         aiSourceByExtension = stored.aiSourceByExtension ?? aiSourceByExtension
         syncsWithICloud = stored.syncsWithICloud ?? false
         syncsExtensionSettings = stored.syncsExtensionSettings ?? true
+        alternativeActions = stored.alternativeActions ?? ActionSettings()
     }
 
     /// How the launcher looks, taken in apart from the rest so neither list grows past reading.
@@ -412,7 +416,8 @@ final class AppSettings: ObservableObject {
             focusShortcut: focusShortcut,
             aiSourceByExtension: aiSourceByExtension,
             syncsWithICloud: syncsWithICloud,
-            syncsExtensionSettings: syncsExtensionSettings
+            syncsExtensionSettings: syncsExtensionSettings,
+            alternativeActions: alternativeActions
         )
         if let data = try? JSONEncoder().encode(stored) {
             write(data)

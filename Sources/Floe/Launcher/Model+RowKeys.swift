@@ -14,7 +14,7 @@ extension LauncherModel {
     func handleRowKey(_ event: NSEvent, _ flags: NSEvent.ModifierFlags) -> Bool {
         guard results.indices.contains(selection) else { return false }
         let item = results[selection].item
-        if ownerHandlesKey(event.keyCode, flags: flags, on: item) {
+        if features.actions.handleKey(event.keyCode, flags: flags, on: item) || ownerHandlesKey(event.keyCode, flags: flags, on: item) {
             return true
         }
         switch (event.keyCode, item) {

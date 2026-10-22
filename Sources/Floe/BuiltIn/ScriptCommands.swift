@@ -60,6 +60,8 @@ nonisolated struct ScriptCommand: Identifiable, Sendable, Hashable {
     let needsConfirmation: Bool
     let icon: String?
     let arguments: [ScriptArgument]
+    /// The `@floe.*` lines, keys lowercased. Raycast reads none of them; they make a script an alternative action.
+    var floeMetadata: [String: String] = [:]
 
     var id: String {
         "script/\(file.lastPathComponent)"
@@ -69,20 +71,24 @@ nonisolated struct ScriptCommand: Identifiable, Sendable, Hashable {
         packageName ?? String(localized: "Script Command", bundle: .floe, comment: "What a script command is called where it names no package.")
     }
 
+    /// The `@raycast.*` and `@floe.*` fields of a file's text, keys lowercased. The first of a name wins.
+    static func fields(of text: String) -> (raycast: [String: String], floe: [String: String]) {
+        var fields: [Substring: [String: String]] = [:]
+        for line in text.components(separatedBy: .newlines) {
+            guard let match = line.firstMatch(of: /@(raycast|floe)\.\h*(\p{L}*\p{N}*)(.*)/), !match.2.isEmpty else { continue }
+            let key = match.2.lowercased()
+            fields[match.1, default: [:]][key] = fields[match.1]?[key] ?? match.3.trimmingCharacters(in: .whitespaces)
+        }
+        return (fields["raycast"] ?? [:], fields["floe"] ?? [:])
+    }
+
     /// Reads one file's metadata. schemaVersion and title are required; mode defaults to
     /// fullOutput; up to three arguments are kept.
     static func parse(file: URL) -> Result<ScriptCommand, ScriptParseError> {
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
             return .failure(.unreadable)
         }
-        var values: [String: String] = [:]
-        for line in text.components(separatedBy: .newlines) {
-            guard let match = line.firstMatch(of: /@raycast\.\h*(\p{L}*\p{N}*)(.*)/) else { continue }
-            let key = match.1.lowercased()
-            let value = match.2.trimmingCharacters(in: .whitespaces)
-            guard !key.isEmpty, values[key] == nil else { continue }
-            values[key] = value
-        }
+        let (values, floeValues) = fields(of: text)
         guard let schema = values["schemaversion"], !schema.isEmpty else {
             return .failure(.missingSchemaVersion)
         }
@@ -120,7 +126,8 @@ nonisolated struct ScriptCommand: Identifiable, Sendable, Hashable {
             mode: mode,
             needsConfirmation: confirmation == "true" || confirmation == "1" || confirmation == "yes",
             icon: values["icon"].flatMap { $0.isEmpty ? nil : $0 },
-            arguments: arguments
+            arguments: arguments,
+            floeMetadata: floeValues
         ))
     }
 
@@ -179,8 +186,10 @@ nonisolated struct ScriptScan: Sendable {
 nonisolated enum ScriptRunner {
     static let timeout: TimeInterval = 60
 
-    static func run(_ script: ScriptCommand, arguments: [String]) async throws -> ShellResult {
-        try await Shell.run(script.file, arguments, in: script.file.deletingLastPathComponent(), timeout: timeout)
+    /// `environment` is added to the login shell's, as an alternative action hands a script what it acts on.
+    static func run(_ script: ScriptCommand, arguments: [String], environment: [String: String] = [:]) async throws -> ShellResult {
+        let surroundings = environment.isEmpty ? nil : LoginEnvironment.current.merging(environment) { _, given in given }
+        return try await Shell.run(script.file, arguments, in: script.file.deletingLastPathComponent(), environment: surroundings, timeout: timeout)
     }
 
     /// Splits typed arguments on whitespace, keeping "quoted spans" together.

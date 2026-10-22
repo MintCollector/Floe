@@ -17,6 +17,11 @@ struct ItemAction {
     var icon: NSImage?
     /// A row with children opens a submenu and does nothing itself.
     var children: [ItemAction] = []
+    /// What settings call the row, so it can be made the default, moved, hidden or given keys. Nil for a row
+    /// that is only ever where Floe puts it.
+    var id: String?
+    /// The keys that run the row while its result is selected, shown beside it in the menu.
+    var shortcut: KeyCombination?
     var run: () -> Void = { /* a submenu's title */ }
 }
 
@@ -45,6 +50,10 @@ enum ActionsMenu {
             }
             let item = ClosureMenuItem(title: action.title, handler: action.run)
             item.image = action.icon ?? NSImage(systemSymbolName: action.symbol, accessibilityDescription: nil)
+            if let shortcut = action.shortcut {
+                item.keyEquivalent = shortcut.key.keyEquivalent.lowercased()
+                item.keyEquivalentModifierMask = shortcut.modifiers.nsEventFlags
+            }
             if !action.children.isEmpty {
                 item.submenu = Self.menu(action.children)
             }
@@ -151,11 +160,11 @@ enum FileActions {
         }
         actions += preferredAppActions(for: url, host: host)
         actions += [
-            ItemAction(title: String(localized: "Show in Finder", bundle: .floe), symbol: "folder") {
+            ItemAction(title: String(localized: "Show in Finder", bundle: .floe), symbol: "folder", id: "showInFinder") {
                 NSWorkspace.shared.activateFileViewerSelecting([url])
                 host.dismiss()
             },
-            ItemAction(title: String(localized: "Quick Look", bundle: .floe, comment: "The name of the macOS feature that previews a file."), symbol: "eye") { host.quickLook(url) },
+            ItemAction(title: String(localized: "Quick Look", bundle: .floe, comment: "The name of the macOS feature that previews a file."), symbol: "eye", id: "quickLook") { host.quickLook(url) },
             nil,
         ]
         actions += copies(of: url, host: host)
@@ -166,22 +175,22 @@ enum FileActions {
     }
 
     static func trashAction(_ url: URL, host: ActionHost) -> ItemAction {
-        ItemAction(title: String(localized: "Move to Trash…", bundle: .floe), symbol: "trash") { trash(url, host: host) }
+        ItemAction(title: String(localized: "Move to Trash…", bundle: .floe), symbol: "trash", id: "moveToTrash") { trash(url, host: host) }
     }
 
     /// An app is not copied as a file, so its menu leaves that row out.
     static func copies(of url: URL, host: ActionHost, includesFile: Bool = true) -> [ItemAction] {
         let name = FileManager.default.displayName(atPath: url.path)
         let copies = [
-            ItemAction(title: String(localized: "Copy Path", bundle: .floe), symbol: "doc.on.doc") {
+            ItemAction(title: String(localized: "Copy Path", bundle: .floe), symbol: "doc.on.doc", id: "copyPath") {
                 NSPasteboard.general.copy(url.path)
                 host.showHUD(String(localized: "Copied Path", bundle: .floe))
             },
-            ItemAction(title: String(localized: "Copy Name", bundle: .floe), symbol: "textformat") {
+            ItemAction(title: String(localized: "Copy Name", bundle: .floe), symbol: "textformat", id: "copyName") {
                 NSPasteboard.general.copy(name)
                 host.showHUD(String(localized: "Copied \(name)", bundle: .floe, comment: "Shown briefly after copying. The placeholder is what was copied, such as a file name."))
             },
-            ItemAction(title: String(localized: "Copy File", bundle: .floe), symbol: "doc.on.clipboard") {
+            ItemAction(title: String(localized: "Copy File", bundle: .floe), symbol: "doc.on.clipboard", id: "copyFile") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.writeObjects([url as NSURL])
                 host.showHUD(String(localized: "Copied \(name)", bundle: .floe, comment: "Shown briefly after copying. The placeholder is what was copied, such as a file name."))
@@ -200,12 +209,17 @@ enum FileActions {
             let icon = workspace.icon(forFile: app.path)
             icon.size = NSSize(width: 16, height: 16)
             let name = FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
-            return ItemAction(title: app == preferred ? String(localized: "\(name) (default)", bundle: .floe, comment: "A row in the Open With menu. The placeholder is the name of the app that opens this kind of file by default.") : name, symbol: "app", icon: icon) {
+            return ItemAction(title: app == preferred ? String(localized: "\(name) (default)", bundle: .floe, comment: "A row in the Open With menu. The placeholder is the name of the app that opens this kind of file by default.") : name, symbol: "app", icon: icon, id: openWithID(app)) {
                 workspace.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
                 host.dismiss()
             }
         }
-        return ItemAction(title: String(localized: "Open With", bundle: .floe, comment: "The title of a submenu that lists apps."), symbol: "arrow.up.forward.app", children: Array(rows))
+        return ItemAction(title: String(localized: "Open With", bundle: .floe, comment: "The title of a submenu that lists apps."), symbol: "arrow.up.forward.app", children: Array(rows), id: "openWith")
+    }
+
+    /// An Open With row's id: the app's bundle identifier, which is the same on every Mac, or its path.
+    static func openWithID(_ app: URL) -> String {
+        "openWith:\(Bundle(url: app)?.bundleIdentifier ?? app.path)"
     }
 
     /// The default app first, then the rest by name, one row per app.
@@ -252,7 +266,7 @@ enum AppActions {
             actions += processActions(app, running, host: host) + [nil]
         }
         actions += [
-            ItemAction(title: String(localized: "Show in Finder", bundle: .floe), symbol: "folder") {
+            ItemAction(title: String(localized: "Show in Finder", bundle: .floe), symbol: "folder", id: "showInFinder") {
                 NSWorkspace.shared.activateFileViewerSelecting([app.url])
                 host.dismiss()
             },
@@ -260,7 +274,7 @@ enum AppActions {
         ]
         actions += FileActions.copies(of: app.url, host: host, includesFile: false)
         if let identifier = Bundle(url: app.url)?.bundleIdentifier {
-            actions.append(ItemAction(title: String(localized: "Copy Bundle Identifier", bundle: .floe), symbol: "number") {
+            actions.append(ItemAction(title: String(localized: "Copy Bundle Identifier", bundle: .floe), symbol: "number", id: "copyBundleIdentifier") {
                 NSPasteboard.general.copy(identifier)
                 host.showHUD(String(localized: "Copied \(identifier)", bundle: .floe, comment: "Shown briefly after copying. The placeholder is what was copied, such as a file name."))
             })
@@ -275,19 +289,19 @@ enum AppActions {
     private static func processActions(_ app: AppEntry, _ running: NSRunningApplication, host: ActionHost) -> [ItemAction] {
         var actions: [ItemAction] = []
         if !running.isHidden {
-            actions.append(ItemAction(title: String(localized: "Hide", bundle: .floe, comment: "An action that hides a running app's windows."), symbol: "eye.slash") {
+            actions.append(ItemAction(title: String(localized: "Hide", bundle: .floe, comment: "An action that hides a running app's windows."), symbol: "eye.slash", id: "hide") {
                 running.hide()
                 host.dismiss()
             })
         }
-        actions.append(ItemAction(title: String(localized: "Quit", bundle: .floe, comment: "An action that quits a running app."), symbol: "xmark.circle") {
+        actions.append(ItemAction(title: String(localized: "Quit", bundle: .floe, comment: "An action that quits a running app."), symbol: "xmark.circle", id: "quit") {
             running.terminate()
             host.showHUD(String(localized: "Quitting \(app.name)", bundle: .floe, comment: "The placeholder is an app's name."))
         })
-        actions.append(ItemAction(title: String(localized: "Restart", bundle: .floe, comment: "An action that quits a running app and opens it again."), symbol: "arrow.clockwise") {
+        actions.append(ItemAction(title: String(localized: "Restart", bundle: .floe, comment: "An action that quits a running app and opens it again."), symbol: "arrow.clockwise", id: "restart") {
             restart(app, running, host: host)
         })
-        actions.append(ItemAction(title: String(localized: "Force Quit…", bundle: .floe), symbol: "xmark.octagon") { forceQuit(app, running, host: host) })
+        actions.append(ItemAction(title: String(localized: "Force Quit…", bundle: .floe), symbol: "xmark.octagon", id: "forceQuit") { forceQuit(app, running, host: host) })
         return actions
     }
 

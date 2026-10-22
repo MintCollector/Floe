@@ -59,6 +59,8 @@ enum SettingsSync {
         field("separatesSearchField", Bool.self),
         // Of the shell settings only the prefix: whether commands run at all is decided on each Mac.
         field("shell", CommandPrefix.self, .entries(only: ["prefix"])),
+        // Script actions it names are files on each Mac; a default whose script is missing is passed over.
+        field("alternativeActions", ActionSettings.self),
     ]
 
     /// The settings that never leave this Mac, each with why.
