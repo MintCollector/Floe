@@ -164,7 +164,8 @@ The [changelog](CHANGELOG.md) describes each in more detail.
 
 - Run Raycast extensions unmodified, including ones Raycast already installed.
 - Browse, install and update extensions in the Extension Store page.
-- Use their lists, details, forms, preferences, arguments, and background and interval commands.
+- Use their lists, grids, details, forms, preferences, arguments, and background and interval commands.
+- Let a command start another, with `launchCommand` or a `raycast://extensions/…` link.
 - Add extension menu bar commands by hand.
 - Switch off an extension or a single command, and set an alias, hotkey or custom icon per command.
 - Remove an extension, whether Floe or Raycast installed it.
@@ -172,6 +173,31 @@ The [changelog](CHANGELOG.md) describes each in more detail.
 - Sign GitHub and GitLab extensions in through `gh` and `glab`.
 - Sign other extensions in through the browser, by way of Raycast's sign-in service for now, or enter a token where that cannot be received.
 - See the log and run a command again when it throws, crashes or hangs.
+
+<details>
+<summary><b>Raycast extension compatibility</b>: a test against real extensions</summary>
+
+[Raycast API compatibility](docs/COMPAT.md) goes through the API part by part.
+
+On 2026-10-18, 1,850 of the 3,443 extensions in Raycast's extensions repository were installed with install scripts off and built with Floe's runtime. The view commands that could run without the app were run.
+
+- **Built:** 6,035 of 6,052 macOS commands. The 17 that failed are in 6 extensions.
+- **Ran:** up to two view commands per extension, for 10 seconds each, with no app to answer requests such as the clipboard or the browser. Of the 1,077 view commands that ran, 677 showed content, 192 showed a form, 62 showed an empty view, 9 showed nothing, 97 failed and 40 stopped at sign-in.
+- **Not run:** 626 view commands that need preferences first and 38 that need arguments. 588 extensions whose code runs AppleScript or shell commands, moves files to the Trash or calls Swift or Rust. 90 extensions with no view command.
+- **Not covered:** no-view and menu bar commands, commands that need preferences, arguments or sign-in, extensions that run AppleScript or shell commands, and how a command looks.
+
+The build failures, by cause:
+
+| Cause | Commands | Extensions |
+| --- | --- | --- |
+| A JSX entity escape Bun does not read | 1 | 1 |
+| An import that only a package's CommonJS build has | 12 | 2 |
+| An import of something not installed, in code that does not run | 2 | 2 |
+| A Git dependency that its install script builds | 2 | 1 |
+
+Built again on 2026-10-21, every command in the first three causes built. The 2 with the Git dependency still fail.
+
+</details>
 
 ### Thaw
 
@@ -183,6 +209,7 @@ The [changelog](CHANGELOG.md) describes each in more detail.
 - Pick a glass style, tint, border and shadow for the launcher, with a live preview.
 - Choose the search field's shape, or float it as its own piece of glass.
 - Use a compact layout that shows only the search bar until you type.
+- Run a beam of light around the search field, in one of four colour sets, or switch it off.
 
 ### Settings, privacy and sync
 
@@ -245,7 +272,7 @@ Next, in this order. The order can change.
 
 1. **Documentation.** A guide for extension authors first: how to run a local extension in Floe, what works and what does not. Then Floe's section on the Thaw website.
 2. **Floe's own sign-in service** for extensions, in place of Raycast's.
-3. **More of the extension API:** the grid layout, `launchCommand` and deeplinks.
+3. **More of the extension API:** deeplinks opened from outside Floe.
 4. **Settings sync switched on:** releases signed for iCloud, then the same sync in Thaw.
 
 Later:

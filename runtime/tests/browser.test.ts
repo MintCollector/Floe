@@ -49,6 +49,18 @@ describe("the page reader", () => {
     );
   });
 
+  test("a link that runs or embeds something keeps only its text", () => {
+    const links = ["javascript:alert(1)", "JavaScript:alert(1)", "data:text/html,<b>", "vbscript:msgbox"].map((href) => element("A", { href }, "here"));
+    const body = element("BODY", {}, element("P", {}, ...links, element("A", { href: "mailto:a@floe.test" }, "mail")));
+
+    expect(read(body, "markdown").content).toBe("herehereherehere[mail](mailto:a@floe.test)");
+  });
+
+  test("brackets in a link's text and parentheses in its address cannot end the link early", () => {
+    const body = element("BODY", {}, element("P", {}, element("A", { href: "https://floe.test/(x)" }, "a] [b](https://evil.test)")));
+    expect(read(body, "markdown").content).toBe(String.raw`[a\] \[b\](https://evil.test)](https://floe.test/%28x%29)`);
+  });
+
   test("html is the whole document, or the matched element's; text is what the browser shows", () => {
     const body = { ...element("MAIN", {}), outerHTML: "<main>part</main>", innerText: "shown" };
     expect(read(body, "html").content).toBe("<html>whole</html>");
