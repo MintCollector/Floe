@@ -56,6 +56,11 @@ describe("certificate settings written for Node", () => {
     expect(typeof fetch.FetchError).toBe("function");
   });
 
+  test("a pin in checkServerIdentity still refuses a certificate the authority trusts", async () => {
+    const pinned = new https.Agent({ ca, checkServerIdentity: () => new Error("not the pinned certificate") });
+    await expect(fetch(secureURL(), { agent: pinned })).rejects.toThrow();
+  });
+
   test("undici's fetch takes them from an Agent's connect options, and from the global dispatcher", async () => {
     const dispatcher = new undici.Agent({ connect: { ca } });
     expect(await (await undici.fetch(secureURL(), { dispatcher })).text()).toBe("secure ");
@@ -150,6 +155,18 @@ describe("better-sqlite3 over bun:sqlite", () => {
 
   // Code Saver encrypts its snippets with a key the user sets.
   test("an encryption key is refused, not ignored", () => {
-    expect(() => new Database().pragma("cipher='aes256cbc'")).toThrow("Floe can't open encrypted databases");
+    const db = new Database();
+    for (const pragma of ["cipher='aes256cbc'", "main.key = 'secret'", "\"main\".rekey='x'", "cipher_compatibility = 4"]) {
+      expect(() => db.pragma(pragma)).toThrow("Floe can't open encrypted databases");
+    }
+    expect(() => db.exec("PRAGMA key = 'secret'")).toThrow("Floe can't open encrypted databases");
+    expect(() => db.prepare("pragma main.hexkey = '00'")).toThrow("Floe can't open encrypted databases");
+    for (const sql of ["PRAGMA/**/key = 'secret'", "PRAGMA -- a note\nkey = 'x'", "PRAGMA\"key\" = 'x'", "SELECT '--'; PRAGMA key = 'x'"]) {
+      expect(() => db.exec(sql), sql).toThrow("Floe can't open encrypted databases");
+    }
+    expect(db.pragma("user_version", { simple: true })).toBe(0);
+    db.exec("CREATE TABLE notes (body TEXT); INSERT INTO notes VALUES ('PRAGMA key = 1'), ('/* -- */')");
+    expect(db.prepare("SELECT count(*) FROM notes").pluck().get()).toBe(2);
+    expect(db.prepare("SELECT 'PRAGMA'cipher_note").pluck().get()).toBe("PRAGMA");
   });
 });

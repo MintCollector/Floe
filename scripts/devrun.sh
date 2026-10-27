@@ -120,9 +120,13 @@ sign_for_icloud() {
     [[ -n "$identity" ]] || fail "No Developer ID Application certificate in the keychain."
 
     work=$(mktemp -d)
+    # Removed however this ends, a refused profile included.
+    trap "rm -rf '$work'" EXIT
     security cms -D -i "$PROFILE" >"$work/profile.plist"
     application=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$work/profile.plist")
     team=${application%%.*}
+    # Checked before sed sees it: a team identifier is ten capital letters and digits.
+    [[ "$team" =~ ^[A-Z0-9]{10}$ ]] || fail "The profile's team, $team, is not a team identifier."
     [[ "$application" == "$team.$BUNDLE_ID" ]] || fail "The profile is for $application, not $BUNDLE_ID."
 
     # What Xcode fills in when it signs with a profile: the two variables, the app's identifier and the environment.
@@ -138,7 +142,6 @@ sign_for_icloud() {
     # Not --deep: only the app itself may claim what the profile grants, never Bun or a helper inside it.
     codesign --force --timestamp=none --entitlements "$work/entitlements.plist" --sign "$identity" "$APP" 2>/dev/null
     codesign --verify --deep --strict "$APP"
-    rm -rf "$work"
 }
 
 # macOS ties a permission such as Accessibility to the signature. The build's ad hoc one changes every
