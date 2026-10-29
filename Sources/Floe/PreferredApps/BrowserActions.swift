@@ -42,20 +42,21 @@ struct BrowserMenu {
 enum LinkActions {
     /// The other browsers on this Mac, for one link; nil when there are none.
     static func openWith(_ url: URL, menu: BrowserMenu, host: ActionHost, opener: LinkOpener) -> ItemAction? {
-        let rows = menu.others.prefix(12).map { browser in
+        let shown = Array(menu.others.prefix(12))
+        let rows = zip(shown, ActionID.openWith(shown.map(\.url))).map { browser, id in
             let icon = NSWorkspace.shared.icon(forFile: browser.url.path)
             icon.size = NSSize(width: 16, height: 16)
-            return ItemAction(title: browser.title, symbol: "app", icon: icon) {
+            return ItemAction(title: browser.title, symbol: "app", icon: icon, id: id) {
                 opener.open(url, browser.url)
                 host.dismiss()
             }
         }
-        return rows.isEmpty ? nil : ItemAction(title: String(localized: "Open With", bundle: .floe), symbol: "arrow.up.forward.app", children: Array(rows))
+        return rows.isEmpty ? nil : ItemAction(title: String(localized: "Open With", bundle: .floe), symbol: "arrow.up.forward.app", children: Array(rows), id: .openWith)
     }
 
     /// Copies the address that would open, scheme and all.
     static func copyAddress(_ url: URL, host: ActionHost, copy: @escaping (String) -> Void = { NSPasteboard.general.copy($0) }) -> ItemAction {
-        ItemAction(title: String(localized: "Copy Address", bundle: .floe), symbol: "doc.on.doc") {
+        ItemAction(title: String(localized: "Copy Address", bundle: .floe), symbol: "doc.on.doc", id: .copyAddress) {
             copy(url.absoluteString)
             host.showHUD(String(localized: "Copied Address", bundle: .floe))
         }

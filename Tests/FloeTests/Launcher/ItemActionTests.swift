@@ -278,3 +278,82 @@ struct ItemActionTests {
         #expect(left == 0, "the panel stays up for the question")
     }
 }
+
+/// The names settings will keep the user's choices under.
+@MainActor
+struct ActionIDTests {
+    private let host = ActionHost(showHUD: { _ in }, dismiss: {})
+
+    private func makeModel(apps: [AppEntry] = []) -> LauncherModel {
+        LauncherModel(settings: AppSettings(defaults: MemoryDefaults()), snapshot: CatalogSnapshot(apps: apps, commands: []))
+    }
+
+    /// Every row, a submenu's rows included.
+    private func flattened(_ actions: [ItemAction?]) -> [ItemAction] {
+        actions.compactMap(\.self).flatMap { [$0] + flattened($0.children) }
+    }
+
+    /// Settings will keep what the user chose under these names, so a renamed one loses it.
+    @Test func floesOwnActionIDsKeepTheirNames() {
+        let names: [ActionID: String] = [
+            .primary: "floe:primary", .showInFinder: "floe:showInFinder", .quickLook: "floe:quickLook",
+            .moveToTrash: "floe:moveToTrash", .copyPath: "floe:copyPath", .copyName: "floe:copyName",
+            .copyFile: "floe:copyFile", .copyBundleIdentifier: "floe:copyBundleIdentifier",
+            .copyAddress: "floe:copyAddress", .copy: "floe:copy", .hide: "floe:hide", .quit: "floe:quit",
+            .restart: "floe:restart", .forceQuit: "floe:forceQuit", .configureExtension: "floe:configureExtension",
+            .toggleFavorite: "floe:toggleFavorite", .hideFromSearch: "floe:hideFromSearch", .openWith: "floe:openWith",
+            .openIn(.terminal): "floe:openIn/terminal",
+        ]
+        for (id, name) in names {
+            #expect(id.rawValue == name)
+        }
+        #expect(ActionID.openWith(URL(fileURLWithPath: "/System/Applications/NotARealApp.app")).rawValue == "floe:openWith//System/Applications/NotARealApp.app")
+    }
+
+    @Test func twoCopiesOfAnAppInOpenWithAreNamedByTheirPaths() {
+        let preview = URL(fileURLWithPath: "/System/Applications/Preview.app")
+        let copy = URL(fileURLWithPath: "/tmp/floe-copy-\(UUID().uuidString)/Preview.app")
+        let notes = URL(fileURLWithPath: "/System/Applications/Notes.app")
+        guard Bundle(url: preview)?.bundleIdentifier == "com.apple.Preview" else { return }
+        let contents = copy.appendingPathComponent("Contents")
+        try? FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        try? FileManager.default.copyItem(at: preview.appendingPathComponent("Contents/Info.plist"), to: contents.appendingPathComponent("Info.plist"))
+        defer { try? FileManager.default.removeItem(at: copy.deletingLastPathComponent()) }
+
+        #expect(ActionID.openWith([preview, notes]).map(\.rawValue) == ["floe:openWith/com.apple.Preview", "floe:openWith/com.apple.Notes"])
+        #expect(ActionID.openWith([preview, copy, notes]).map(\.rawValue) == [
+            "floe:openWith//System/Applications/Preview.app",
+            "floe:openWith/" + copy.standardizedFileURL.path,
+            "floe:openWith/com.apple.Notes",
+        ])
+    }
+
+    @Test func anActionIDIsStoredAsItsName() throws {
+        let data = try JSONEncoder().encode([ActionID.quit])
+        #expect(String(bytes: data, encoding: .utf8) == #"["floe:quit"]"#)
+        #expect(try JSONDecoder().decode([ActionID].self, from: data) == [.quit])
+    }
+
+    @Test func everyRowOfAFilesMenuIsNamedOnce() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("floe-action-\(UUID().uuidString).txt")
+        try Data("x".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let rows = flattened(FileActions.actions(for: file, host: host))
+        let ids = rows.compactMap(\.id)
+        #expect(ids.count == rows.count, "every row has an id")
+        #expect(Set(ids).count == ids.count, "no two rows share one")
+        #expect(ids.allSatisfy { $0.rawValue.hasPrefix("floe:") })
+        #expect(ids.contains(.moveToTrash))
+    }
+
+    @Test func everyRowOfAnAppsMenuIsNamedOnce() {
+        let app = AppEntry(name: "Floe Test App", url: URL(fileURLWithPath: "/System/Applications/NotARealApp-\(UUID().uuidString).app"))
+        let model = makeModel(apps: [app])
+        let rows = flattened(model.rootActions(for: .app(app)))
+        let ids = rows.compactMap(\.id)
+        #expect(ids.count == rows.count, "every row has an id")
+        #expect(Set(ids).count == ids.count, "no two rows share one")
+        #expect(ids.first == .primary)
+        #expect(ids.suffix(2) == [.toggleFavorite, .hideFromSearch])
+    }
+}
