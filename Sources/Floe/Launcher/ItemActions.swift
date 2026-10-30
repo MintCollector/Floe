@@ -56,20 +56,15 @@ struct ActionID: RawRepresentable, Hashable, Codable, Sendable {
     /// The Open With submenu itself.
     static let openWith = ActionID(floe: "openWith")
 
-    /// A row of Open With: the app's bundle identifier, which is the same on every Mac, or else its path.
-    static func openWith(_ app: URL) -> ActionID {
-        openWith([app])[0]
-    }
-
-    /// The rows of one Open With, in order. Two copies of an app share a bundle identifier, so each of them is
-    /// named by its path instead.
-    static func openWith(_ apps: [URL]) -> [ActionID] {
-        let identifiers = apps.map { Bundle(url: $0)?.bundleIdentifier }
-        let copies = Dictionary(identifiers.compactMap(\.self).map { ($0, 1) }, uniquingKeysWith: +)
-        return zip(apps, identifiers).map { app, identifier in
-            let name = identifier.flatMap { copies[$0] == 1 ? $0 : nil } ?? app.standardizedFileURL.path
-            return ActionID(floe: "openWith/" + name)
+    /// A row of Open With. The copy of an app that macOS opens for its bundle identifier is named by that
+    /// identifier, the same on every Mac. Any other copy, such as a development build beside it, shares the
+    /// identifier, so it is named by its path. Either way the name is the app's own, whatever else the menu lists.
+    static func openWith(_ app: URL, systemCopy: (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }) -> ActionID {
+        let path = app.resolvingSymlinksInPath().path
+        guard let identifier = Bundle(url: app)?.bundleIdentifier, systemCopy(identifier)?.resolvingSymlinksInPath().path == path else {
+            return ActionID(floe: "openWith/" + path)
         }
+        return ActionID(floe: "openWith/" + identifier)
     }
 
     /// "Open in Ghostty": named after the role, so it stays the same row when the role's app changes.
@@ -254,12 +249,11 @@ enum FileActions {
         let preferred = workspace.urlForApplication(toOpen: url)
         let apps = orderedApps(workspace.urlsForApplications(toOpen: url), preferred: preferred)
         guard !apps.isEmpty else { return nil }
-        let shown = Array(apps.prefix(12))
-        let rows = zip(shown, ActionID.openWith(shown)).map { app, id in
+        let rows = apps.prefix(12).map { app in
             let icon = workspace.icon(forFile: app.path)
             icon.size = NSSize(width: 16, height: 16)
             let name = FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
-            return ItemAction(title: app == preferred ? String(localized: "\(name) (default)", bundle: .floe, comment: "A row in the Open With menu. The placeholder is the name of the app that opens this kind of file by default.") : name, symbol: "app", icon: icon, id: id) {
+            return ItemAction(title: app == preferred ? String(localized: "\(name) (default)", bundle: .floe, comment: "A row in the Open With menu. The placeholder is the name of the app that opens this kind of file by default.") : name, symbol: "app", icon: icon, id: .openWith(app)) {
                 workspace.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
                 host.dismiss()
             }

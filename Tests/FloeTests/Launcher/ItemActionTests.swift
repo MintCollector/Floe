@@ -310,22 +310,19 @@ struct ActionIDTests {
         #expect(ActionID.openWith(URL(fileURLWithPath: "/System/Applications/NotARealApp.app")).rawValue == "floe:openWith//System/Applications/NotARealApp.app")
     }
 
-    @Test func twoCopiesOfAnAppInOpenWithAreNamedByTheirPaths() {
+    @Test func theCopyMacOSOpensIsNamedByItsBundleIdentifierAndAnyOtherByItsPath() {
         let preview = URL(fileURLWithPath: "/System/Applications/Preview.app")
         let copy = URL(fileURLWithPath: "/tmp/floe-copy-\(UUID().uuidString)/Preview.app")
-        let notes = URL(fileURLWithPath: "/System/Applications/Notes.app")
         guard Bundle(url: preview)?.bundleIdentifier == "com.apple.Preview" else { return }
         let contents = copy.appendingPathComponent("Contents")
         try? FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
         try? FileManager.default.copyItem(at: preview.appendingPathComponent("Contents/Info.plist"), to: contents.appendingPathComponent("Info.plist"))
         defer { try? FileManager.default.removeItem(at: copy.deletingLastPathComponent()) }
 
-        #expect(ActionID.openWith([preview, notes]).map(\.rawValue) == ["floe:openWith/com.apple.Preview", "floe:openWith/com.apple.Notes"])
-        #expect(ActionID.openWith([preview, copy, notes]).map(\.rawValue) == [
-            "floe:openWith//System/Applications/Preview.app",
-            "floe:openWith/" + copy.standardizedFileURL.path,
-            "floe:openWith/com.apple.Notes",
-        ])
+        let systemOpens: (String) -> URL? = { $0 == "com.apple.Preview" ? preview : nil }
+        #expect(ActionID.openWith(preview, systemCopy: systemOpens).rawValue == "floe:openWith/com.apple.Preview")
+        #expect(ActionID.openWith(copy, systemCopy: systemOpens).rawValue == "floe:openWith/" + copy.resolvingSymlinksInPath().path)
+        #expect(ActionID.openWith(copy, systemCopy: { _ in copy }).rawValue == "floe:openWith/com.apple.Preview", "the copy macOS opens is the one named by the identifier")
     }
 
     @Test func anActionIDIsStoredAsItsName() throws {
@@ -343,7 +340,14 @@ struct ActionIDTests {
         #expect(ids.count == rows.count, "every row has an id")
         #expect(Set(ids).count == ids.count, "no two rows share one")
         #expect(ids.allSatisfy { $0.rawValue.hasPrefix("floe:") })
-        #expect(ids.contains(.moveToTrash))
+        let named = Dictionary(rows.map { ($0.title, $0.id) }, uniquingKeysWith: { first, _ in first })
+        let expected: [String: ActionID] = [
+            "Show in Finder": .showInFinder, "Quick Look": .quickLook, "Copy Path": .copyPath, "Copy Name": .copyName,
+            "Copy File": .copyFile, "Move to Trash…": .moveToTrash, "Open With": .openWith,
+        ]
+        for (title, id) in expected {
+            #expect(named[title] == id, "\(title) is \(id.rawValue)")
+        }
     }
 
     @Test func everyRowOfAnAppsMenuIsNamedOnce() {
